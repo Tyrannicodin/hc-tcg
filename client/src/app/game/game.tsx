@@ -1,9 +1,10 @@
+import {useEffect, useRef, useState} from 'react'
 import {useSelector, useDispatch} from 'react-redux'
 import {CardT} from 'common/types/game-state'
-import {PickProcessT, PickedCardT} from 'common/types/pick-process'
+import {PickedCardT} from 'common/types/pick-process'
 import CardList from 'components/card-list'
 import Board from './board'
-import css from './game.module.css'
+import css from './game.module.scss'
 import AttackModal from './modals/attack-modal'
 import ConfirmModal from './modals/confirm-modal'
 import SpyglassModal from './modals/spyglass-modal'
@@ -14,10 +15,10 @@ import ForfeitModal from './modals/forfeit-modal'
 import UnmetCondition from './modals/unmet-condition-modal'
 import EndTurnModal from './modals/end-turn-modal'
 import DiscardedModal from './modals/discarded-modal'
-import MouseIndicator from './mouse-indicator'
 import EndGameOverlay from './end-game-overlay'
 import Toolbar from './toolbar'
 import Chat from './chat'
+import {playSound} from 'logic/sound/sound-actions'
 import {
 	getGameState,
 	getSelectedCard,
@@ -31,34 +32,6 @@ import {
 	setSelectedCard,
 	slotPicked,
 } from 'logic/game/game-actions'
-
-const getPickProcessMessage = (pickProcess: PickProcessT) => {
-	const req = pickProcess.requirments[pickProcess.currentReq]
-	const target =
-		req.target === 'board'
-			? "anyone's"
-			: req.target === 'opponent'
-			? "opponent's"
-			: 'your'
-
-	let location = ''
-	if (req.target === 'hand') {
-		location = 'hand'
-	} else if (req.active === true) {
-		location = 'active hermit'
-	} else if (req.active === false) {
-		location = 'afk hermits'
-	} else {
-		location = 'side of the board'
-	}
-
-	const type = req.type === 'any' ? '' : req.type
-	const empty = req.empty || false
-	const name = pickProcess.name
-	return `${name}: Pick ${req.amount} ${empty ? 'empty' : ''} ${type} ${
-		empty ? 'slot' : 'card'
-	}${req.amount > 1 ? 's' : ''} from ${target} ${location}.`
-}
 
 const MODAL_COMPONENTS: Record<string, React.FC<any>> = {
 	attack: AttackModal,
@@ -90,12 +63,18 @@ function Game() {
 	const selectedCard = useSelector(getSelectedCard)
 	const pickedCards = useSelector(getPickProcess)?.pickedCards || []
 	const openedModal = useSelector(getOpenedModal)
-	const pickProcess = useSelector(getPickProcess)
 	const playerState = useSelector(getPlayerState)
 	const endGameOverlay = useSelector(getEndGameOverlay)
 	const dispatch = useDispatch()
 
-	if (!gameState || !playerState) return <main>Loading</main>
+	if (!gameState || !playerState) return <p>Loading</p>
+	const [gameScale, setGameScale] = useState<number>(1)
+	const pickedCardsInstances = pickedCards
+		.map((pickedCard) => pickedCard.card)
+		.filter(Boolean) as Array<CardT>
+
+	const gameWrapperRef = useRef<HTMLDivElement>(null)
+	const gameRef = useRef<HTMLDivElement>(null)
 
 	const handleOpenModal = (id: string | null) => {
 		dispatch(setOpenedModal(id))
@@ -111,38 +90,61 @@ function Game() {
 		dispatch(setSelectedCard(card))
 	}
 
-	const pickedCardsInstances = pickedCards
-		.map((pickedCard) => pickedCard.card)
-		.filter(Boolean) as Array<CardT>
+	// Play SFX on turn start
+	useEffect(() => {
+		if (gameState.currentPlayerId === gameState.playerId) {
+			dispatch(playSound('/sfx/Click.ogg'))
+		}
+	}, [gameState.currentPlayerId])
+
+	// Begin resizing
+	useEffect(() => {
+		// Begin resize on page load
+		handleResize()
+	}, [])
+	function handleResize() {
+		if (!gameWrapperRef.current || !gameRef.current) return
+		const scale = Math.min(
+			gameWrapperRef.current.clientWidth / gameRef.current.clientWidth,
+			gameWrapperRef.current.clientHeight / gameRef.current.clientHeight
+		)
+		setGameScale(scale)
+	}
+	window.addEventListener('resize', handleResize)
+	// End resizing
 
 	return (
 		<div className={css.game}>
-			<div className={css.innerGame}>
-				<Board onClick={handleBoardClick} localGameState={gameState} />
-				<div className={css.bottom}>
-					<div className={css.toolbar}>
-						<Toolbar />
-					</div>
-					<div className={css.hand}>
-						<CardList
-							wrap={false}
-							size="medium"
-							cards={gameState.hand}
-							onClick={(card: CardT) => selectCard(card)}
-							selected={selectedCard}
-							picked={pickedCardsInstances}
-						/>
-					</div>
+			<div className={css.playAreaWrapper} ref={gameWrapperRef}>
+				<div
+					className={css.playArea}
+					ref={gameRef}
+					style={{transform: `scale(${gameScale})`}}
+				>
+					<div className={css.grid} />
+					<Board onClick={handleBoardClick} localGameState={gameState} />
 				</div>
-				{renderModal(openedModal, handleOpenModal)}
-				{pickProcess ? (
-					<MouseIndicator message={getPickProcessMessage(pickProcess)} />
-				) : null}
-
-				<Chat />
-
-				{endGameOverlay && <EndGameOverlay {...endGameOverlay} />}
 			</div>
+
+			<div className={css.bottom}>
+				<Toolbar />
+				<div className={css.hand}>
+					<CardList
+						wrap={false}
+						size="game"
+						cards={gameState.hand}
+						onClick={(card: CardT) => selectCard(card)}
+						selected={selectedCard}
+						picked={pickedCardsInstances}
+					/>
+				</div>
+			</div>
+
+			{renderModal(openedModal, handleOpenModal)}
+
+			<Chat />
+
+			{endGameOverlay && <EndGameOverlay {...endGameOverlay} />}
 		</div>
 	)
 }

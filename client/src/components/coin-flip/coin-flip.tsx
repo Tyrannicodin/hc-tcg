@@ -18,17 +18,19 @@ const CoinFlip = ({name, tosses, iterations}: Props) => {
 		const coinPics = pics.slice()
 		if (face === 'tails') coinPics.reverse()
 		return (
-			<div
-				className={css.coin}
-				key={index}
-				style={{animationIterationCount: iterations[index]}}
-			>
-				<div className={classnames(css.face, css.front)}>
-					<img src={coinPics[0]} />
+			<div className={css.coinGroup} key={index}>
+				<div
+					className={css.coin}
+					style={{animationIterationCount: iterations[index]}}
+				>
+					<div className={classnames(css.face, css.front)}>
+						<img src={coinPics[0]} />
+					</div>
+					<div className={classnames(css.face, css.back)}>
+						<img src={coinPics[1]} />
+					</div>
 				</div>
-				<div className={classnames(css.face, css.back)}>
-					<img src={coinPics[1]} />
-				</div>
+				<p className={css.result}>{face.toString()}</p>
 			</div>
 		)
 	})
@@ -36,7 +38,7 @@ const CoinFlip = ({name, tosses, iterations}: Props) => {
 	return (
 		<div className={css.coinFlip}>
 			<div className={css.name}>{name}</div>
-			<div className={css.tosses}>{coins}</div>
+			<div className={css.coins}>{coins}</div>
 		</div>
 	)
 }
