@@ -11,6 +11,7 @@ import BoardRow from './board-row'
 import PlayerInfo from '../player-info'
 import Timer from '../timer'
 import Actions from '../actions/actions'
+import {getSettings} from 'logic/local-settings/local-settings-selectors'
 
 type Props = {
 	onClick: (meta: PickedCardT) => void
@@ -20,9 +21,13 @@ type Props = {
 // TODO - Don't allow clicking on slots on the other side
 // TODO - Use selectors instead of passing gameState
 function Board({onClick, localGameState}: Props) {
+	const settings = useSelector(getSettings)
 	const playerId = useSelector(getPlayerId)
 	const player = localGameState.players[playerId]
 	const opponent = localGameState.players[localGameState.opponentPlayerId]
+	const side = settings.gameSide
+	const leftPlayer = side === 'Left' ? player : opponent
+	const rightPlayer = side === 'Right' ? player : opponent
 
 	const handleRowClick = (
 		playerId: string,
@@ -66,14 +71,14 @@ function Board({onClick, localGameState}: Props) {
 	return (
 		<div className={css.gameBoard}>
 			<div className={css.playerInfoSection}>
-				<PlayerInfo player={player} direction="left" />
+				<PlayerInfo player={leftPlayer} direction="left" />
 				<Timer />
-				<PlayerInfo player={opponent} direction="right" />
+				<PlayerInfo player={rightPlayer} direction="right" />
 			</div>
 
 			<div className={css.actualBoard}>
-				{PlayerBoard(player, 'left')}
-				{PlayerBoard(opponent, 'right')}
+				{PlayerBoard(leftPlayer, 'left')}
+				{PlayerBoard(rightPlayer, 'right')}
 			</div>
 
 			<Actions

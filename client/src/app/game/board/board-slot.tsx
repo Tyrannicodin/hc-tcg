@@ -32,7 +32,7 @@ const Slot = ({type, onClick, card, rowState, active, cssId}: SlotProps) => {
 	)
 
 	const frameImg =
-		type === 'hermit' ? '/images/frame_glow.png' : '/images/frame.png'
+		type === 'hermit' ? '/images/game/frame_glow.png' : '/images/game/frame.png'
 
 	return (
 		<div
