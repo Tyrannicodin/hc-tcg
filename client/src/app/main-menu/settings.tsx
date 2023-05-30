@@ -44,7 +44,7 @@ function Settings({setMenuSection}: Props) {
 		dispatch(resetStats())
 	}
 	const handlePanoramaToggle = () => {
-		dispatch(setSetting('panorama', !settings.panorama))
+		dispatch(setSetting('panoramaEnabled', !settings.panoramaEnabled))
 	}
 	const handleGameSideToggle = () => {
 		const gameSide = settings.gameSide === 'Left' ? 'Right' : 'Left'
@@ -61,6 +61,7 @@ function Settings({setMenuSection}: Props) {
 		if (value !== '0') return `${value}%`
 		return 'Disabled'
 	}
+
 	return (
 		<MenuLayout
 			back={() => setMenuSection('mainmenu')}
@@ -83,10 +84,10 @@ function Settings({setMenuSection}: Props) {
 					Confirmation Dialogs: {getDescriptor(settings.confirmationDialogs)}
 				</Button>
 				<Button variant="stone" onClick={handlePanoramaToggle}>
-					Toggle Panorama: {getBoolDescriptor(settings.panorama)}
+					Panorama: {getBoolDescriptor(settings.panoramaEnabled)}
 				</Button>
 				<Button variant="stone" onClick={handleGameSideToggle}>
-					Toggle Game Side: {settings.gameSide.toString()}
+					Game Side: {settings.gameSide.toString()}
 				</Button>
 				<Button variant="stone" onClick={handleResetStats}>
 					Reset Stats
