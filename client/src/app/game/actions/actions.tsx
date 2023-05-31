@@ -141,8 +141,6 @@ const Actions = ({onClick, localGameState, mobile, id}: Props) => {
 		)
 	}
 
-	console.log('Actions...')
-
 	return (
 		<div
 			id={id}
