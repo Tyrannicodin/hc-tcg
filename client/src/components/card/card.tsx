@@ -1,4 +1,4 @@
-import classnames from 'classnames'
+import cn from 'classnames'
 import {CardInfoT} from 'common/types/cards'
 import HermitCard, {HermitCardProps} from './hermit-card-svg'
 import EffectCard, {EffectCardProps} from './effect-card-svg'
@@ -7,8 +7,11 @@ import HealthCard, {HealthCardProps} from './health-card-svg'
 import css from './card.module.scss'
 import Tooltip from 'components/tooltip'
 import CardTooltip from './card-tooltip'
-
-type CardProps = {
+interface CardProps
+	extends React.DetailedHTMLProps<
+		React.ButtonHTMLAttributes<HTMLButtonElement>,
+		HTMLButtonElement
+	> {
 	card: CardInfoT
 	selected?: boolean
 	picked?: boolean
@@ -30,16 +33,16 @@ const Card = (props: CardProps) => {
 	else throw new Error('Unsupported card type: ' + type)
 	return (
 		<Tooltip tooltip={<CardTooltip card={props.card} />}>
-			<div
-				className={classnames(css.card, {
+			<button
+				{...props}
+				className={cn(props.className, css.card, {
 					[css.selected]: selected,
 					[css.picked]: picked,
-					[css.selectable]: !!onClick,
 				})}
 				onClick={onClick}
 			>
 				{card}
-			</div>
+			</button>
 		</Tooltip>
 	)
 }

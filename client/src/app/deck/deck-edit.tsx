@@ -304,7 +304,6 @@ function EditDeck({back, title, saveDeck, deck}: Props) {
 							cards={sortCards(filteredCards).filter(
 								(card) => TYPED_CARDS[card.cardId].type === 'hermit'
 							)}
-							size="small"
 							wrap={true}
 							onClick={addCard}
 						/>
@@ -314,7 +313,6 @@ function EditDeck({back, title, saveDeck, deck}: Props) {
 							cards={sortCards(filteredCards).filter(
 								(card) => TYPED_CARDS[card.cardId].type === 'effect'
 							)}
-							size="small"
 							wrap={true}
 							onClick={addCard}
 						/>
@@ -324,7 +322,6 @@ function EditDeck({back, title, saveDeck, deck}: Props) {
 							cards={sortCards(filteredCards).filter(
 								(card) => TYPED_CARDS[card.cardId].type === 'single_use'
 							)}
-							size="small"
 							wrap={true}
 							onClick={addCard}
 						/>
@@ -334,7 +331,6 @@ function EditDeck({back, title, saveDeck, deck}: Props) {
 							cards={sortCards(filteredCards).filter(
 								(card) => TYPED_CARDS[card.cardId].type === 'item'
 							)}
-							size="small"
 							wrap={true}
 							onClick={addCard}
 						/>
@@ -425,7 +421,6 @@ function EditDeck({back, title, saveDeck, deck}: Props) {
 							>
 								<CardList
 									cards={sortCards(selectedCards.hermits)}
-									size="small"
 									wrap={true}
 									onClick={removeCard}
 								/>
@@ -439,7 +434,6 @@ function EditDeck({back, title, saveDeck, deck}: Props) {
 						>
 							<CardList
 								cards={sortCards(selectedCards.attachableEffects)}
-								size="small"
 								wrap={true}
 								onClick={removeCard}
 							/>
@@ -452,7 +446,6 @@ function EditDeck({back, title, saveDeck, deck}: Props) {
 						>
 							<CardList
 								cards={sortCards(selectedCards.singleUseEffects)}
-								size="small"
 								wrap={true}
 								onClick={removeCard}
 							/>
@@ -460,7 +453,6 @@ function EditDeck({back, title, saveDeck, deck}: Props) {
 						<Accordion header={cardGroupHeader('Items', selectedCards.items)}>
 							<CardList
 								cards={sortCards(selectedCards.items)}
-								size="small"
 								wrap={true}
 								onClick={removeCard}
 							/>
