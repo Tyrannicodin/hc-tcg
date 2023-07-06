@@ -2,7 +2,7 @@ import css from './actions.module.scss'
 import cn from 'classnames'
 import Slot from '../board/board-slot'
 import {useSelector, useDispatch} from 'react-redux'
-import {setOpenedModal, endTurn} from 'logic/game/game-actions'
+import {setOpenedModal} from 'logic/game/game-actions'
 import {
 	getPlayerStateById,
 	getAvailableActions,
@@ -13,7 +13,6 @@ import {
 import {PickProcessT, PickedCardT} from 'common/types/pick-process'
 import {LocalGameState} from 'common/types/game-state'
 import {getPlayerId} from 'logic/session/session-selectors'
-import {getSettings} from 'logic/local-settings/local-settings-selectors'
 import CoinFlip from 'components/coin-flip'
 import Button from 'components/button'
 
@@ -59,7 +58,6 @@ const Actions = ({onClick, localGameState, mobile, id}: Props) => {
 	const availableActions = useSelector(getAvailableActions)
 	const currentCoinFlip = useSelector(getCurrentCoinFlip)
 	const pickProcess = useSelector(getPickProcess)
-	const settings = useSelector(getSettings)
 	const player = useSelector(getPlayerState)
 	const dispatch = useDispatch()
 
@@ -125,17 +123,6 @@ const Actions = ({onClick, localGameState, mobile, id}: Props) => {
 			dispatch(setOpenedModal('attack'))
 		}
 
-		function handleEndTurn() {
-			if (
-				availableActions.length === 1 ||
-				settings.confirmationDialogs === 'off'
-			) {
-				dispatch(endTurn())
-			} else {
-				dispatch(setOpenedModal('end-turn'))
-			}
-		}
-
 		const attackOptions =
 			availableActions.includes('ZERO_ATTACK') ||
 			availableActions.includes('PRIMARY_ATTACK') ||
@@ -146,18 +133,11 @@ const Actions = ({onClick, localGameState, mobile, id}: Props) => {
 				<Button
 					variant="default"
 					size="small"
+					style={{height: '3.5vh'}}
 					onClick={handleAttack}
 					disabled={!attackOptions}
 				>
 					Attack
-				</Button>
-				<Button
-					variant={!availableActions.includes('END_TURN') ? 'default' : 'error'}
-					size="small"
-					onClick={handleEndTurn}
-					disabled={!availableActions.includes('END_TURN')}
-				>
-					End Turn
 				</Button>
 			</div>
 		)
@@ -171,14 +151,6 @@ const Actions = ({onClick, localGameState, mobile, id}: Props) => {
 				[css.desktop]: !mobile,
 			})}
 		>
-			{/* <p>
-				{availableActions
-					.toString()
-					.split(',')
-					.map((s) => (
-						<span key={s}>{s}, </span>
-					))}
-			</p> */}
 			<div className={css.actionSection} id={css.singleUse}>
 				<h2>Single Use Card</h2>
 				{SingleUseSlot()}
