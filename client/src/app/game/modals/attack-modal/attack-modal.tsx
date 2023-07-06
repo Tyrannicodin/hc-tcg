@@ -3,7 +3,8 @@ import {useSelector, useDispatch} from 'react-redux'
 import {HermitCardT} from 'common/types/cards'
 import {HERMIT_CARDS, SINGLE_USE_CARDS} from 'server/cards'
 import {getPlayerActiveRow, getOpponentActiveRow} from '../../game-selectors'
-import css from './attack-modal.module.css'
+// import css from './attack-modal.module.css'
+import css from '../game-modals.module.scss'
 import {getPlayerId} from 'logic/session/session-selectors'
 import {
 	getAvailableActions,
@@ -28,6 +29,7 @@ function AttackModal({closeModal}: Props) {
 
 	if (!activeRow || !playerState || !activeRow.hermitCard) return null
 	if (!opponentRow || !opponentRow.hermitCard) return null
+	if (availableActions.includes('WAIT_FOR_TURN')) return null
 
 	const playerHermitInfo = HERMIT_CARDS[
 		activeRow.hermitCard.cardId
@@ -105,22 +107,20 @@ function AttackModal({closeModal}: Props) {
 	}
 
 	return (
-		<Modal title="Attack" closeModal={closeModal}>
-			<div className={css.attackModal}>
+		<Modal title="Attack" closeModal={closeModal} centered>
+			<div className={css.description}>
 				{attacks.length ? (
 					<>
-						<div className={css.turnEndNotification}>
-							<span className={css.infoIcon}>!</span>
-							Attack is the last action of your turn.
-						</div>
-						<div className={css.turnEndNotification}>
-							<span className={css.infoIcon}>i</span>
+						<Modal.Notice icon={'!'}>
+							Attacking will end your turn!
+						</Modal.Notice>
+						<Modal.Notice icon={'i'}>
 							Damage bonuses from special moves are NOT included in the preview.
-						</div>
+						</Modal.Notice>
 						{attacks}
 					</>
 				) : (
-					<span className={css.noAttacks}>No attacks available.</span>
+					<span>No attacks available.</span>
 				)}
 			</div>
 		</Modal>

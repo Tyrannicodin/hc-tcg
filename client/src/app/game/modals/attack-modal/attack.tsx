@@ -1,4 +1,4 @@
-import classnames from 'classnames'
+import cn from 'classnames'
 import {useSelector} from 'react-redux'
 import {HERMIT_CARDS, EFFECT_CARDS, SINGLE_USE_CARDS} from 'server/cards'
 import Strengths from 'server/const/strengths'
@@ -6,7 +6,9 @@ import {getPlayerActiveRow, getOpponentActiveRow} from '../../game-selectors'
 import {getPlayerState, getOpponentState} from 'logic/game/game-selectors'
 import {HermitAttackT} from 'common/types/cards'
 import valueModifiers from './value-modifiers'
-import css from './attack-modal.module.css'
+// import css from './attack-modal.module.css'
+import css from '../game-modals.module.scss'
+import {ReactNode} from 'react'
 
 type Props = {
 	attackInfo: HermitAttackT | null
@@ -82,7 +84,7 @@ const Attack = ({attackInfo, onClick, name, icon, extra}: Props) => {
 		}
 	)
 
-	const getDamagaValue = (
+	const getDamageValue = (
 		info: ReturnType<typeof makeAttackMod>,
 		value: number
 	) => {
@@ -108,21 +110,28 @@ const Attack = ({attackInfo, onClick, name, icon, extra}: Props) => {
 		)
 	})
 
-	const attackParts = []
+	const attackParts: ReactNode[] = []
 
+	// BASE ATTACK
 	if (attackInfo) {
 		attackParts.push(
 			<div key="hermit" className={css.attackPart}>
-				<div className={css.hermitDamage}>
-					<img src={`/images/hermits-nobg/${hermitFullName}.png`} width="32" />
-				</div>
-				<div className={css.damageAmount}>
-					{getDamagaValue(modifiedAttackInfo.hermit, attackInfo.damage)}
-				</div>
+				<img
+					className={css.attackIcon}
+					src={`/images/hermits-emoji/${hermitFullName}.png`}
+					height="16"
+					width="16"
+				/>
+
+				{/* Damage Value */}
+				<p className={css.damageAmount}>
+					{getDamageValue(modifiedAttackInfo.hermit, attackInfo.damage)}
+				</p>
 			</div>
 		)
 	}
 
+	// SINGLE USE ATTACK
 	if (suAttackInfo) {
 		if (attackParts.length) {
 			attackParts.push(
@@ -134,16 +143,19 @@ const Attack = ({attackInfo, onClick, name, icon, extra}: Props) => {
 		attackParts.push(
 			<div key="single-use" className={css.attackPart}>
 				<img
+					className={css.attackIcon}
 					src={`/images/effects/${singleUseInfo?.id}.png`}
 					width="16"
 					height="16"
 				/>
+
+				{/* Damage Value */}
 				<div className={css.damageAmount}>
-					{getDamagaValue(modifiedAttackInfo.effect, suAttackInfo.damage)}
+					{getDamageValue(modifiedAttackInfo.effect, suAttackInfo.damage)}
 					{suAttackInfo.afkDamage ? (
 						<>
 							(
-							{getDamagaValue(
+							{getDamageValue(
 								modifiedAttackInfo.afkEffect,
 								suAttackInfo.afkDamage
 							)}
@@ -155,6 +167,7 @@ const Attack = ({attackInfo, onClick, name, icon, extra}: Props) => {
 		)
 	}
 
+	// WEAKNESS
 	if (hasWeakness && baseDamage > 0) {
 		if (attackParts.length) {
 			attackParts.push(
@@ -165,14 +178,22 @@ const Attack = ({attackInfo, onClick, name, icon, extra}: Props) => {
 		}
 		attackParts.push(
 			<div key="weakness" className={css.attackPart}>
-				<img src={`/images/weakness.png`} width="16" height="16" />
+				<img
+					src={`/images/weakness.png`}
+					className={css.attackIcon}
+					width="16"
+					height="16"
+				/>
+
+				{/* Damage Value */}
 				<div className={css.damageAmount}>
-					{getDamagaValue(modifiedAttackInfo.weakness, weaknessDamage)}
+					{getDamageValue(modifiedAttackInfo.weakness, weaknessDamage)}
 				</div>
 			</div>
 		)
 	}
 
+	// PROTECTION
 	if (
 		opponentEffectInfo &&
 		(protectionAmount || modifiedAttackInfo.protection.max)
@@ -187,46 +208,53 @@ const Attack = ({attackInfo, onClick, name, icon, extra}: Props) => {
 		attackParts.push(
 			<div key="protection" className={css.attackPart}>
 				<img
+					className={css.attackIcon}
 					src={`/images/effects/${opponentEffectInfo.id}.png`}
 					width="16"
 					height="16"
 				/>
+
+				{/* Damage Value */}
 				<div className={css.damageAmount}>
-					{getDamagaValue(modifiedAttackInfo.protection, protectionAmount)}
+					{getDamageValue(modifiedAttackInfo.protection, protectionAmount)}
 				</div>
 			</div>
 		)
 	}
 
 	return (
-		<div
+		<button
 			key={name}
-			className={classnames(css.attack, {[css.extra]: extra})}
+			className={cn(css.attack, {[css.extra]: extra})}
 			onClick={onClick}
 		>
+			{/* PORTRAIT */}
 			<div
-				className={classnames(css.icon, {
+				className={cn(css.portrait, {
 					[css.effectIcon]: !attackInfo,
 					[css.hermitIcon]: !!attackInfo,
 				})}
 			>
 				<img src={icon} />
 			</div>
+
+			{/* ATTACK NAME */}
 			<div className={css.info}>
-				<div className={css.name}>
+				<p className={css.name}>
 					{name} -{' '}
 					<span
-						className={classnames(css.damage, {
+						className={cn(css.damage, {
 							[css.specialMove]: !!attackInfo?.power,
 						})}
 					>
 						{totalMinMax[0] !== totalMinMax[1] ? <>{totalMinMax[0]}-</> : null}
 						{totalMinMax[1]}
 					</span>
-				</div>
-				<div className={css.description}>{attackParts}</div>
+				</p>
+				{/* ATTACK CALCULATIONS */}
+				<div className={css.details}>{attackParts}</div>
 			</div>
-		</div>
+		</button>
 	)
 }
 

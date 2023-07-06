@@ -39,15 +39,15 @@ import {setSetting} from 'logic/local-settings/local-settings-actions'
 
 const MODAL_COMPONENTS: Record<string, React.FC<any>> = {
 	attack: AttackModal,
-	confirm: ConfirmModal,
-	spyglass: SpyglassModal,
-	chest: ChestModal,
 	borrow: BorrowModal,
-	'unmet-condition': UnmetConditionModal,
 	'change-hermit-modal': ChangeHermitModal,
-	'end-turn': EndTurnModal,
+	chest: ChestModal,
+	confirm: ConfirmModal,
 	discarded: DiscardedModal,
+	'end-turn': EndTurnModal,
 	forfeit: ForfeitModal,
+	spyglass: SpyglassModal,
+	'unmet-condition': UnmetConditionModal,
 }
 
 const renderModal = (
@@ -55,6 +55,7 @@ const renderModal = (
 	handleOpenModalId: (modalId: string | null) => void
 ) => {
 	const closeModal = () => handleOpenModalId(null)
+
 	if (!openedModal || !Object.hasOwn(MODAL_COMPONENTS, openedModal.id))
 		return null
 
@@ -97,12 +98,23 @@ function Game() {
 	}
 
 	function handleKeys(e: any) {
-		if (e.key === '/') {
-			settings.showChat === 'off' && dispatch(setSetting('showChat', 'on'))
-		}
+		const chatIsClosed = settings.showChat === 'off'
 
 		if (e.key === 'Escape') {
 			dispatch(setSetting('showChat', 'off'))
+		}
+
+		if (chatIsClosed) {
+			e.key === '/' && dispatch(setSetting('showChat', 'on'))
+			if (e.key === 'a' || e.key === 'A') {
+				dispatch(setOpenedModal('attack'))
+			}
+			if (e.key === 'e' || e.key === 'E') {
+				dispatch(setOpenedModal('end-turn'))
+			}
+			if (e.key === 'm' || e.key === 'M') {
+				console.log('Mute!')
+			}
 		}
 	}
 
