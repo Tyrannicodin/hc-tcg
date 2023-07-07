@@ -12,6 +12,33 @@ type Props = {
 	direction: 'left' | 'right'
 }
 
+const hermits = [
+	'BdoubleO100',
+	'Cubfan135',
+	'Docm77',
+	'Ethoslab',
+	'Falsesymmetry',
+	'GeminiTay',
+	'GoodTimeWithScar',
+	'Grian',
+	'iJevin',
+	'impulseSV',
+	'iskall85',
+	'joehillssays',
+	'Keralis1',
+	'Mumbo',
+	'PearlescentMoon',
+	'Renthedog',
+	'Stressmonster101',
+	'TangoTek',
+	'Tinfoilchef',
+	'VintageBeef',
+	'Welsknight',
+	'xBCrafted',
+	'Xisuma',
+	'Zedaph',
+]
+
 function PlayerInfo({player, direction}: Props) {
 	const gameState = useSelector(getGameState)
 	const playerId = useSelector(getPlayerId)
