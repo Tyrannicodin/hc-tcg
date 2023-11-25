@@ -1,15 +1,16 @@
 import Ailment from './ailment'
 import {GameModel} from '../models/game-model'
-import {CardPosModel, getBasicCardPos, getCardPos} from '../models/card-pos-model'
+import {CardPosModel, getBasicCardPos} from '../models/card-pos-model'
 import {removeAilment} from '../utils/board'
 import {AilmentT} from '../types/game-state'
+import {HERMIT_CARDS} from '../cards'
 
-class DyedAilment extends Ailment {
+class MelodyAilment extends Ailment {
 	constructor() {
 		super({
-			id: 'dyed',
-			name: 'Dyed',
-			description: 'Items attached to this Hermit become any type.',
+			id: 'melody',
+			name: "Ollie's Melody",
+			description: 'This Hermit heals 10hp every turn.',
 			duration: 0,
 			counter: false,
 			damageEffect: false,
@@ -19,22 +20,22 @@ class DyedAilment extends Ailment {
 	override onApply(game: GameModel, ailmentInfo: AilmentT, pos: CardPosModel) {
 		const {player} = pos
 
-		const hasDyed = game.state.ailments.some(
-			(a) => a.targetInstance === pos.card?.cardInstance && a.ailmentId === 'dyed'
+		const hasMelody = game.state.ailments.some(
+			(a) => a.targetInstance === pos.card?.cardInstance && a.ailmentId === 'melody'
 		)
 
-		if (hasDyed) return
+		if (hasMelody) return
 
 		game.state.ailments.push(ailmentInfo)
 
-		player.hooks.availableEnergy.add(ailmentInfo.ailmentInstance, (availableEnergy) => {
-			if (!player.board.activeRow) return availableEnergy
+		player.hooks.onTurnStart.add(ailmentInfo.ailmentInstance, () => {
+			const targetPos = getBasicCardPos(game, ailmentInfo.targetInstance)
+			if (!targetPos || !targetPos.row || !targetPos.rowIndex || !targetPos.row.hermitCard) return
 
-			const activeRow = player.board.rows[player.board.activeRow]
-
-			if (ailmentInfo.targetInstance !== activeRow.hermitCard?.cardInstance) return availableEnergy
-
-			return availableEnergy.map(() => 'any')
+			const hermitInfo = HERMIT_CARDS[targetPos.row.hermitCard.cardId]
+			if (hermitInfo) {
+				targetPos.row.health = Math.min(targetPos.row.health + 10, hermitInfo.health)
+			}
 		})
 
 		player.hooks.onHermitDeath.add(ailmentInfo.ailmentInstance, (hermitPos) => {
@@ -52,4 +53,4 @@ class DyedAilment extends Ailment {
 	}
 }
 
-export default DyedAilment
+export default MelodyAilment
