@@ -1,11 +1,11 @@
-import Ailment from './ailment'
-import {GameModel} from '../models/game-model'
-import {CardPosModel, getBasicCardPos, getCardPos} from '../models/card-pos-model'
-import {removeAilment} from '../utils/board'
-import {AilmentT} from '../types/game-state'
+import Ailment from "./ailment"
+import { GameModel } from "../models/game-model"
+import { CardPosModel, getBasicCardPos, getCardPos } from "../models/card-pos-model"
+import { removeAilment } from "../utils/board"
+import { AilmentT } from "../types/game-state"
 
-class DyedAilment extends Ailment {
-	constructor() {
+class DyedAilment extends Ailment{
+    constructor() {
 		super({
 			id: 'dyed',
 			name: 'Dyed',
@@ -17,15 +17,8 @@ class DyedAilment extends Ailment {
 	}
 
 	override onApply(game: GameModel, ailmentInfo: AilmentT, pos: CardPosModel) {
-		const {player} = pos
-
-		const hasDyed = game.state.ailments.some(
-			(a) => a.targetInstance === pos.card?.cardInstance && a.ailmentId === 'dyed'
-		)
-
-		if (hasDyed) return
-
 		game.state.ailments.push(ailmentInfo)
+		const {player} = pos
 
 		player.hooks.availableEnergy.add(ailmentInfo.ailmentInstance, (availableEnergy) => {
 			if (!player.board.activeRow) return availableEnergy
@@ -36,6 +29,7 @@ class DyedAilment extends Ailment {
 
 			return availableEnergy.map(() => 'any')
 		})
+
 
 		player.hooks.onHermitDeath.add(ailmentInfo.ailmentInstance, (hermitPos) => {
 			if (hermitPos.row?.hermitCard?.cardInstance != ailmentInfo.targetInstance) return
