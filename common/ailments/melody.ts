@@ -45,10 +45,9 @@ class MelodyAilment extends Ailment {
 	}
 
 	override onRemoval(game: GameModel, ailmentInfo: AilmentT, pos: CardPosModel) {
-		const {player, opponentPlayer} = pos
+		const {player} = pos
 
-		player.hooks.availableEnergy.remove(ailmentInfo.ailmentInstance)
-		opponentPlayer.hooks.onTurnEnd.remove(ailmentInfo.ailmentInstance)
+		player.hooks.onTurnStart.remove(ailmentInfo.ailmentInstance)
 		player.hooks.onHermitDeath.remove(ailmentInfo.ailmentInstance)
 	}
 }
