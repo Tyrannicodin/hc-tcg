@@ -53,9 +53,6 @@ class OrionSoundRareHermitCard extends HermitCard {
 
 					return 'SUCCESS'
 				},
-				onTimeout() {
-					return
-				},
 			})
 		})
 
