@@ -1,4 +1,4 @@
-import {CARDS, ITEM_CARDS} from '../cards'
+import {CARDS, HERMIT_CARDS, ITEM_CARDS} from '../cards'
 import {AILMENT_CLASSES} from '../ailments'
 import {CardPosModel, getCardPos} from '../models/card-pos-model'
 import {GameModel} from '../models/game-model'
@@ -195,4 +195,28 @@ export function canAttachToCard(
 	if (!cardInfo.canAttachToCard(game, cardAttachingPos)) return false
 
 	return true
+}
+
+export function healHermit(game: GameModel, cardInstance: string, health: number): number {
+	const targetPos = getCardPos(game, cardInstance)
+	if (!targetPos?.row || !targetPos.row.hermitCard) return 0
+	const hermitInfo = HERMIT_CARDS[targetPos.row.hermitCard.cardId]
+
+	if (hermitInfo) {
+		const heal = Math.min(targetPos.row.health + health, hermitInfo.health)
+		targetPos.row.health = heal
+		return heal
+	}
+	return 0
+}
+
+export function healCard(game: GameModel, cardInstance: string, health: number): number {
+	const targetPos = getCardPos(game, cardInstance)
+	if (!targetPos?.row || !targetPos.row.hermitCard) return 0
+
+	if (healHermit(game, cardInstance, health) === 0) {
+		targetPos.row.health += health
+		return health
+	}
+	return 0
 }
