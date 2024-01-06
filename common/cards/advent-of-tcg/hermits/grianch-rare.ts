@@ -2,7 +2,7 @@ import HermitCard from '../../base/hermit-card'
 import {HERMIT_CARDS} from '../..'
 import {GameModel} from '../../../models/game-model'
 import {CardPosModel} from '../../../models/card-pos-model'
-import {getNonEmptyRows} from '../../../utils/board'
+import {getNonEmptyRows, healCard} from '../../../utils/board'
 import {flipCoin} from '../../../utils/coinFlips'
 
 class GrianchRareHermitCard extends HermitCard {
@@ -70,23 +70,12 @@ class GrianchRareHermitCard extends HermitCard {
 					if (!pickResult.card) return 'FAILURE_INVALID_SLOT'
 
 					// Make sure it's an actual hermit card
-					const hermitCard = HERMIT_CARDS[pickResult.card.cardId]
+					const hermitInfo = HERMIT_CARDS[pickResult.card.cardId]
+					if (!hermitInfo) return 'FAILURE_INVALID_SLOT'
+					const hermitCard = pickedPlayer.board.rows[rowIndex].hermitCard
 					if (!hermitCard) return 'FAILURE_INVALID_SLOT'
-					const hermitId = pickedPlayer.board.rows[rowIndex].hermitCard?.cardId
-					const hermitHealth = pickedPlayer.board.rows[rowIndex].health
 
-					if (!hermitHealth || !hermitId) return 'FAILURE_INVALID_SLOT'
-					const hermitInfo = HERMIT_CARDS[hermitId]
-					if (hermitInfo) {
-						// Heal
-						pickedPlayer.board.rows[rowIndex].health = Math.min(
-							hermitHealth + 40,
-							hermitInfo.health // Max health
-						)
-					} else {
-						// Armor Stand
-						pickedPlayer.board.rows[rowIndex].health = hermitHealth + 40
-					}
+					healCard(game, hermitCard.cardInstance, 40)
 					return 'SUCCESS'
 				},
 			})

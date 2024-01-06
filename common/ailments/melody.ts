@@ -1,7 +1,7 @@
 import Ailment from './ailment'
 import {GameModel} from '../models/game-model'
 import {CardPosModel, getBasicCardPos} from '../models/card-pos-model'
-import {removeAilment} from '../utils/board'
+import {healHermit as healHermit, removeAilment} from '../utils/board'
 import {AilmentT} from '../types/game-state'
 import {HERMIT_CARDS} from '../cards'
 
@@ -29,14 +29,7 @@ class MelodyAilment extends Ailment {
 		game.state.ailments.push(ailmentInfo)
 
 		player.hooks.onTurnStart.add(ailmentInfo.ailmentInstance, () => {
-			const targetPos = getBasicCardPos(game, ailmentInfo.targetInstance)
-			if (!targetPos || !targetPos.row || !targetPos.row.hermitCard) return
-			if (targetPos.rowIndex === null) return
-
-			const hermitInfo = HERMIT_CARDS[targetPos.row.hermitCard.cardId]
-			if (hermitInfo) {
-				targetPos.row.health = Math.min(targetPos.row.health + 10, hermitInfo.health)
-			}
+			healHermit(game, ailmentInfo.ailmentInstance, 10)
 		})
 
 		player.hooks.onHermitDeath.add(ailmentInfo.ailmentInstance, (hermitPos) => {
