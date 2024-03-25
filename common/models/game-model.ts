@@ -1,9 +1,18 @@
 import {PlayerModel} from './player-model'
-import {TurnAction, GameState, ActionResult, TurnActions, PlayerState} from '../types/game-state'
+import {
+	TurnAction,
+	GameState,
+	ActionResult,
+	TurnActions,
+	BattleLogT,
+	PlayerState,
+} from '../types/game-state'
 import {MessageInfoT} from '../types/chat'
 import {getGameState} from '../utils/state-gen'
 import {ModalRequest, PickRequest} from '../types/server-requests'
 import {SlotPos} from '../types/cards'
+import {BattleLog} from './battle-log'
+import {getActiveRow} from 'common/utils/board'
 
 export class GameModel {
 	private internalCreatedTime: number
@@ -11,6 +20,7 @@ export class GameModel {
 	private internalCode: string | null
 
 	public chat: Array<MessageInfoT>
+	public battleLog: BattleLog
 	public players: Record<string, PlayerModel>
 	public task: any
 	public state: GameState
@@ -27,6 +37,7 @@ export class GameModel {
 		this.internalId = 'game_' + Math.random().toString()
 		this.internalCode = code
 		this.chat = []
+		this.battleLog = new BattleLog(this)
 
 		this.task = null
 
@@ -223,6 +234,14 @@ export class GameModel {
 		// Call before active row change hooks - if any of the results are false do not change
 		const results = player.hooks.beforeActiveRowChange.call(currentActiveRow, newRow)
 		if (results.includes(false)) return false
+
+		// Create battle log entry
+		if (newRow && currentActiveRow) {
+			const oldHermit = player.board.rows[currentActiveRow]?.hermitCard
+			const newHermit = player.board.rows[newRow].hermitCard
+
+			this.battleLog.addChangeHermitEntry(oldHermit, newHermit)
+		}
 
 		// Change the active row
 		player.board.activeRow = newRow

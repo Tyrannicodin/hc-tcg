@@ -22,7 +22,12 @@ class ChorusFruitSingleUseCard extends SingleUseCard {
 			game.removeBlockedActions(null, 'CHANGE_ACTIVE_HERMIT')
 
 			// Apply the card
-			applySingleUse(game)
+			applySingleUse(game, [
+				[`with `, 'plain'],
+				[`your `, 'plain', 'player'],
+				[`their `, 'plain', 'opponent'],
+				[`attack `, 'plain'],
+			])
 
 			player.hooks.afterAttack.remove(instance)
 		})
@@ -35,8 +40,9 @@ class ChorusFruitSingleUseCard extends SingleUseCard {
 		const {player} = pos
 		const activeRow = getActiveRow(player)
 
-		const isSleeping = game.state.ailments.some(
-			(a) => a.targetInstance == activeRow?.hermitCard?.cardInstance && a.ailmentId == 'sleeping'
+		const isSleeping = game.state.statusEffects.some(
+			(a) =>
+				a.targetInstance == activeRow?.hermitCard?.cardInstance && a.statusEffectId == 'sleeping'
 		)
 		if (isSleeping) return 'NO'
 

@@ -1,3 +1,4 @@
+import {CARDS} from '../..'
 import {CardPosModel} from '../../../models/card-pos-model'
 import {GameModel} from '../../../models/game-model'
 import {createWeaknessAttack} from '../../../utils/attacks'
@@ -49,11 +50,14 @@ class TargetBlockSingleUseCard extends SingleUseCard {
 				if (!row.hermitCard) return 'FAILURE_INVALID_SLOT'
 
 				// Apply the card
-				applySingleUse(game)
+				applySingleUse(game, [
+					[`to target `, 'plain'],
+					[`${CARDS[row.hermitCard.cardId].name} `, 'opponent'],
+				])
 
 				// Redirect all future attacks this turn
 				player.hooks.beforeAttack.add(instance, (attack) => {
-					if (attack.isType('ailment') || attack.isBacklash) return
+					if (attack.isType('status-effect') || attack.isBacklash) return
 
 					attack.target = {
 						player: opponentPlayer,
@@ -67,6 +71,7 @@ class TargetBlockSingleUseCard extends SingleUseCard {
 							attack.addNewAttack(weaknessAttack)
 							player.custom[ignoreThisWeakness] = true
 						}
+						attack.type = 'effect'
 					} else if (attack.type === 'weakness') {
 						if (!player.custom[ignoreThisWeakness]) {
 							attack.target = null
