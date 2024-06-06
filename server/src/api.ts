@@ -118,7 +118,7 @@ export function registerApis(app: import('express').Express) {
 			response.json().then((jsonResponse) => {
 				root.updates = jsonResponse as Record<string, Array<string>>
 			})
-		})
+		}).catch()
 
 		console.log('apis registered')
 	} catch (err) {
