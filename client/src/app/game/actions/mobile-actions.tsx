@@ -2,7 +2,7 @@ import css from './actions.module.scss'
 import cn from 'classnames'
 import Slot from '../board/board-slot'
 import {useSelector, useDispatch} from 'react-redux'
-import {endTurn, setOpenedModal} from 'logic/game/game-actions'
+import {endTurn, endTurnAction, setOpenedModal} from 'logic/game/game-actions'
 import {
 	getPlayerStateById,
 	getAvailableActions,
@@ -15,18 +15,17 @@ import {LocalGameState} from 'common/types/game-state'
 import {getPlayerId} from 'logic/session/session-selectors'
 import CoinFlip from 'components/coin-flip'
 import Button from 'components/button'
-import {SINGLE_USE_CARDS} from 'common/cards'
 import {getSettings} from 'logic/local-settings/local-settings-selectors'
 import {PickInfo} from 'common/types/server-requests'
+import {endTurnModalEmpty} from '../modals/end-turn-modal'
 
 type Props = {
 	onClick: (pickInfo: PickInfo) => void
 	localGameState: LocalGameState
-	mobile?: boolean
 	id?: string
 }
 
-const MobileActions = ({onClick, localGameState, mobile, id}: Props) => {
+const MobileActions = ({onClick, localGameState, id}: Props) => {
 	const currentPlayer = useSelector(getPlayerStateById(localGameState.turn.currentPlayerId))
 	const gameState = useSelector(getGameState)
 	const playerState = useSelector(getPlayerState)
@@ -37,17 +36,16 @@ const MobileActions = ({onClick, localGameState, mobile, id}: Props) => {
 	const availableActions = useSelector(getAvailableActions)
 	const currentCoinFlip = useSelector(getCurrentCoinFlip)
 	const pickMessage = useSelector(getCurrentPickMessage)
-	const player = useSelector(getPlayerState)
 	const settings = useSelector(getSettings)
 	const dispatch = useDispatch()
 
 	if (!gameState || !playerState) return <main>Loading</main>
 
 	function handleEndTurn() {
-		if (availableActions.length === 1 || settings.confirmationDialogs === 'off') {
+		if (endTurnModalEmpty(availableActions) || settings.confirmationDialogs === 'off') {
 			dispatch(endTurn())
 		} else {
-			dispatch(setOpenedModal('end-turn'))
+			dispatch(endTurnAction())
 		}
 	}
 
@@ -94,10 +92,9 @@ const MobileActions = ({onClick, localGameState, mobile, id}: Props) => {
 		const handleClick = () => {
 			isPlayable &&
 				onClick({
-					slot: {
-						type: 'single_use',
-						index: 0,
-					},
+					type: 'single_use',
+					index: null,
+					rowIndex: null,
 					playerId: localGameState.turn.currentPlayerId,
 					card: singleUseCard,
 				})
@@ -105,12 +102,7 @@ const MobileActions = ({onClick, localGameState, mobile, id}: Props) => {
 
 		return (
 			<div className={cn(css.slot, {[css.used]: singleUseCardUsed})}>
-				<Slot
-					card={singleUseCard}
-					type={'single_use'}
-					onClick={handleClick}
-					statusEffects={localGameState.statusEffects}
-				/>
+				<Slot card={singleUseCard} type={'single_use'} onClick={handleClick} playerId={playerId} />
 			</div>
 		)
 	}

@@ -1,7 +1,6 @@
-import {BattleLogT, LocalGameState} from 'common/types/game-state'
-import {CardT, GameEndOutcomeT, GameEndReasonT, CurrentCoinFlipT} from 'common/types/game-state'
-import {MessageInfoT} from 'common/types/chat'
-import {PickInfo} from 'common/types/server-requests'
+import {LocalGameState, Message} from 'common/types/game-state'
+import {GameEndOutcomeT, GameEndReasonT, CurrentCoinFlipT} from 'common/types/game-state'
+import {LocalCardInstance, ModalResult, PickInfo} from 'common/types/server-requests'
 
 export const gameStateReceived = (localGameState: LocalGameState) => ({
 	type: 'GAME_STATE_RECEIVED' as const,
@@ -27,7 +26,7 @@ export const gameEnd = () => ({
 	type: 'GAME_END' as const,
 })
 
-export const setSelectedCard = (card: CardT | null) => ({
+export const setSelectedCard = (card: LocalCardInstance | null) => ({
 	type: 'SET_SELECTED_CARD' as const,
 	payload: card,
 })
@@ -69,11 +68,6 @@ export const setCoinFlip = (payload: CurrentCoinFlipT | null) => ({
 	payload,
 })
 
-export const addBattleLogEntry = (payload: BattleLogT | null) => ({
-	type: 'ADD_BATTLE_LOG_ENTRY',
-	payload,
-})
-
 export const setOpponentConnection = (payload: boolean) => ({
 	type: 'SET_OPPONENT_CONNECTION',
 	payload,
@@ -81,7 +75,7 @@ export const setOpponentConnection = (payload: boolean) => ({
 
 // ---
 
-export const modalRequest = (payload: any) => ({
+export const modalRequest = (payload: {modalResult: ModalResult}) => ({
 	type: 'MODAL_REQUEST' as const,
 	payload,
 })
@@ -104,7 +98,7 @@ export const chatMessage = (message: string) => ({
 	payload: message,
 })
 
-export const chatUpdate = (messages: Array<MessageInfoT>) => ({
+export const chatUpdate = (messages: Array<Message>) => ({
 	type: 'CHAT_UPDATE',
 	payload: messages,
 })

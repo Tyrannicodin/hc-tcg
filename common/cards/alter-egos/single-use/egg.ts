@@ -1,57 +1,51 @@
-import {CARDS} from '../..'
 import {AttackModel} from '../../../models/attack-model'
 import {CardPosModel} from '../../../models/card-pos-model'
 import {GameModel} from '../../../models/game-model'
-import {applySingleUse, getActiveRowPos, getNonEmptyRows} from '../../../utils/board'
+import {slot} from '../../../slot'
+import {SlotInfo} from '../../../types/cards'
+import {CardInstance} from '../../../types/game-state'
+import {applySingleUse, getActiveRowPos} from '../../../utils/board'
 import {flipCoin} from '../../../utils/coinFlips'
-import SingleUseCard from '../../base/single-use-card'
+import Card, {SingleUse, singleUse} from '../../base/card'
 
-class EggSingleUseCard extends SingleUseCard {
-	constructor() {
-		super({
-			id: 'egg',
-			numericId: 140,
-			name: 'Egg',
-			rarity: 'rare',
-			description:
-				"After your attack, choose one of your opponent's AFK Hermits to set as their active Hermit, and then flip a coin.\n\nIf heads, also do 10hp damage to that Hermit.",
-		})
+class EggSingleUseCard extends Card {
+	pickCondition = slot.every(
+		slot.opponent,
+		slot.hermitSlot,
+		slot.not(slot.activeRow),
+		slot.not(slot.empty)
+	)
+
+	props: SingleUse = {
+		...singleUse,
+		id: 'egg',
+		numericId: 140,
+		name: 'Egg',
+		expansion: 'alter_egos',
+		rarity: 'rare',
+		tokens: 1,
+		description:
+			"After your attack, choose one of your opponent's AFK Hermits to set as their active Hermit, and then flip a coin.\nIf heads, also do 10hp damage to that Hermit.",
+		attachCondition: slot.every(
+			singleUse.attachCondition,
+			slot.someSlotFulfills(this.pickCondition)
+		),
+		log: (values) => `${values.defaultLog} on $o${values.pick.name}$`,
 	}
 
-	override canAttach(game: GameModel, pos: CardPosModel) {
-		const result = super.canAttach(game, pos)
-
-		const {opponentPlayer} = pos
-
-		const inactiveHermits = getNonEmptyRows(opponentPlayer, true)
-		if (inactiveHermits.length === 0) result.push('UNMET_CONDITION')
-
-		return result
-	}
-
-	override onAttach(game: GameModel, instance: string, pos: CardPosModel) {
+	override onAttach(game: GameModel, instance: CardInstance, pos: CardPosModel) {
 		const {player, opponentPlayer} = pos
-		const targetKey = this.getInstanceKey(instance, 'target')
+
+		let afkHermitSlot: SlotInfo | null = null
 
 		player.hooks.getAttackRequests.add(instance, () => {
 			game.addPickRequest({
 				playerId: player.id,
-				id: this.id,
+				id: this.props.id,
 				message: "Pick one of your opponent's AFK Hermits",
-				onResult(pickResult) {
-					if (pickResult.playerId !== opponentPlayer.id) return 'FAILURE_INVALID_PLAYER'
-
-					const rowIndex = pickResult.rowIndex
-					if (rowIndex === undefined) return 'FAILURE_INVALID_SLOT'
-					if (rowIndex === opponentPlayer.board.activeRow) return 'FAILURE_INVALID_SLOT'
-
-					if (pickResult.slot.type !== 'hermit') return 'FAILURE_INVALID_SLOT'
-					if (!pickResult.card) return 'FAILURE_INVALID_SLOT'
-
-					// Store the row index to use later
-					player.custom[targetKey] = rowIndex
-
-					return 'SUCCESS'
+				canPick: this.pickCondition,
+				onResult(pickedSlot) {
+					afkHermitSlot = pickedSlot
 				},
 				onTimeout() {
 					// We didn't pick a target so do nothing
@@ -63,38 +57,35 @@ class EggSingleUseCard extends SingleUseCard {
 			const activePos = getActiveRowPos(player)
 			if (!activePos) return []
 
-			const targetIndex: number = player.custom[targetKey]
-			if (targetIndex === null || targetIndex === undefined) return
-			const targetRow = opponentPlayer.board.rows[targetIndex]
-			if (!targetRow || !targetRow.hermitCard) return
+			if (!afkHermitSlot || afkHermitSlot.rowIndex === null || afkHermitSlot.rowIndex == undefined)
+				return
+			const opponentRow = opponentPlayer.board.rows[afkHermitSlot.rowIndex]
+			if (!opponentRow.hermitCard) return
 
-			applySingleUse(game, [
-				[`on `, 'plain'],
-				[`${CARDS[targetRow.hermitCard.cardId].name} `, 'opponent'],
-			])
+			applySingleUse(game, afkHermitSlot)
 
-			const coinFlip = flipCoin(player, {cardId: this.id, cardInstance: instance})
+			const coinFlip = flipCoin(player, instance)
 			if (coinFlip[0] === 'heads') {
 				const eggAttack = new AttackModel({
 					id: this.getInstanceKey(instance),
 					attacker: activePos,
 					target: {
 						player: opponentPlayer,
-						rowIndex: targetIndex,
-						row: targetRow,
+						rowIndex: afkHermitSlot.rowIndex,
+						row: opponentRow,
 					},
+					log: (values) =>
+						`$p{You|${values.player}}$ flipped $gheads$ on $eEgg$ and did an additional ${values.damage} to ${values.target}`,
 					type: 'effect',
-				}).addDamage(this.id, 10)
+				}).addDamage(this.props.id, 10)
 
 				attack.addNewAttack(eggAttack)
 			}
 
-			player.hooks.afterAttack.add(instance, (attack) => {
-				const targetIndex = player.custom[targetKey]
-				game.changeActiveRow(opponentPlayer, targetIndex)
-
-				delete player.custom[targetKey]
-
+			player.hooks.afterAttack.add(instance, () => {
+				if (!afkHermitSlot || afkHermitSlot.rowIndex === null || afkHermitSlot.rowIndex === null)
+					return
+				game.changeActiveRow(opponentPlayer, afkHermitSlot.rowIndex)
 				player.hooks.afterAttack.remove(instance)
 			})
 
@@ -103,15 +94,11 @@ class EggSingleUseCard extends SingleUseCard {
 		})
 	}
 
-	override onDetach(game: GameModel, instance: string, pos: CardPosModel) {
+	override onDetach(game: GameModel, instance: CardInstance, pos: CardPosModel) {
 		const {player} = pos
 
 		player.hooks.getAttackRequests.remove(instance)
 		player.hooks.onAttack.remove(instance)
-	}
-
-	override getExpansion() {
-		return 'alter_egos'
 	}
 }
 

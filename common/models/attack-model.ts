@@ -5,6 +5,7 @@ import {
 	AttackType,
 	ShouldIgnoreCard,
 	WeaknessType,
+	AttackLog,
 } from '../types/attack'
 import {RowPos} from '../types/cards'
 
@@ -25,6 +26,9 @@ export class AttackModel {
 	/** The attack target */
 	private target: RowPos | null
 
+	/** The battle log attached to this attack */
+	private log: Array<(values: AttackLog) => string> = []
+
 	// Public fields
 
 	/** Unique id for this attack */
@@ -34,7 +38,7 @@ export class AttackModel {
 	/** Attacks to perform after this attack */
 	public nextAttacks: Array<AttackModel> = []
 	/** Array of checks to filter out hooks this attack should not trigger */
-	public shouldIgnoreCards: Array<ShouldIgnoreCard> = []
+	public shouldIgnoreSlots: Array<ShouldIgnoreCard> = []
 	/** Is this attack a backlash attack*/
 	public isBacklash: boolean = false
 	/** Whether or not the attack should create a weakness attack */
@@ -47,8 +51,10 @@ export class AttackModel {
 
 		this.attacker = defs.attacker || null
 		this.target = defs.target || null
-		this.shouldIgnoreCards = defs.shouldIgnoreCards || []
+		this.shouldIgnoreSlots = defs.shouldIgnoreSlots || []
 		this.createWeakness = defs.createWeakness || 'never'
+
+		if (defs.log) this.log.push(defs.log)
 
 		return this
 	}
@@ -162,5 +168,25 @@ export class AttackModel {
 	public addNewAttack(newAttack: AttackModel) {
 		this.nextAttacks.push(newAttack)
 		return this
+	}
+
+	/** Updates the log entry*/
+	public updateLog(logEntry: (values: AttackLog) => string) {
+		this.log.push(logEntry)
+	}
+
+	private consolidateLogs(values: AttackLog, logIndex: number) {
+		if (logIndex > 0) {
+			values.previousLog = this.consolidateLogs(values, logIndex - 1)
+		}
+		return this.log[logIndex](values)
+	}
+
+	/** Gets the log entry for this attack*/
+	public getLog(values: AttackLog) {
+		if (this.log.length === 0) {
+			return ''
+		}
+		return this.consolidateLogs(values, this.log.length - 1)
 	}
 }

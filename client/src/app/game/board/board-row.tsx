@@ -1,43 +1,62 @@
-import {RowState} from 'common/types/game-state'
-import {CardT} from 'common/types/game-state'
+import {LocalRowState} from 'common/types/game-state'
 import Slot from './board-slot'
 import css from './board.module.scss'
 import cn from 'classnames'
-import {StatusEffectT} from 'common/types/game-state'
-import {SlotInfo} from 'common/types/server-requests'
-import {BoardSlotTypeT} from 'common/types/cards'
+import {BoardSlotTypeT, SlotTypeT} from 'common/types/cards'
+import {LocalCardInstance, LocalStatusEffectInstance} from 'common/types/server-requests'
+import HealthSlot from './board-health'
 
-const getCardBySlot = (slot: SlotInfo, row: RowState | null): CardT | null => {
+const getCardBySlot = (
+	slotType: SlotTypeT,
+	slotIndex: number,
+	row: LocalRowState | null
+): LocalCardInstance | null => {
 	if (!row) return null
-	if (slot.type === 'hermit') return row.hermitCard || null
-	if (slot.type === 'effect') return row.effectCard || null
-	if (slot.type === 'item') return row.itemCards[slot.index] || null
+	if (slotType === 'hermit') return row.hermitCard || null
+	if (slotType === 'attach') return row.effectCard || null
+	if (slotType === 'item') return row.itemCards[slotIndex] || null
 	return null
 }
 
 type BoardRowProps = {
 	type: 'left' | 'right'
-	onClick: (card: CardT | null, slot: SlotInfo) => void
-	rowState: RowState
+	rowIndex: number
+	onClick: (card: LocalCardInstance | null, slot: SlotTypeT, index: number) => void
+	rowState: LocalRowState
 	active: boolean
-	statusEffects: Array<StatusEffectT>
+	playerId: string
+	statusEffects: Array<LocalStatusEffectInstance>
 }
-const BoardRow = ({type, onClick, rowState, active, statusEffects}: BoardRowProps) => {
-	const slotTypes: Array<BoardSlotTypeT> = ['item', 'item', 'item', 'effect', 'hermit', 'health']
-	const slots = slotTypes.map((slotType, index) => {
-		const slotInfo: SlotInfo = {type: slotType, index: index < 3 ? index : 0}
-		const card = getCardBySlot(slotInfo, rowState)
-		const cssId = slotType === 'item' ? slotType + (index + 1) : slotType
+
+const BoardRow = ({
+	type,
+	rowIndex,
+	onClick,
+	rowState,
+	active,
+	playerId,
+	statusEffects,
+}: BoardRowProps) => {
+	const slotTypes: Array<BoardSlotTypeT> = ['item', 'item', 'item', 'attach', 'hermit']
+	const slots = slotTypes.map((slotType, slotIndex) => {
+		const card = getCardBySlot(slotType, slotIndex, rowState)
+		const cssId = slotType === 'item' ? slotType + (slotIndex + 1) : slotType
+
 		return (
 			<Slot
 				cssId={cssId}
-				onClick={() => onClick(card, slotInfo)}
+				onClick={() => onClick(card, slotType, slotIndex)}
 				card={card}
 				rowState={rowState}
 				active={active}
-				key={slotType + '-' + index}
+				key={slotType + '-' + slotIndex}
 				type={slotType}
-				statusEffects={statusEffects}
+				rowIndex={rowIndex}
+				index={slotIndex}
+				statusEffects={statusEffects.filter(
+					(a) => a.targetInstance.instance == card?.instance && slotType != 'hermit'
+				)}
+				playerId={playerId}
 			/>
 		)
 	})
@@ -50,6 +69,12 @@ const BoardRow = ({type, onClick, rowState, active, statusEffects}: BoardRowProp
 			})}
 		>
 			{slots}
+			<HealthSlot
+				rowState={rowState}
+				statusEffects={statusEffects.filter(
+					(a) => a.targetInstance.instance == rowState.hermitCard?.instance
+				)}
+			/>
 		</div>
 	)
 }

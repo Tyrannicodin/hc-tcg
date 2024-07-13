@@ -12,7 +12,5 @@
 		"maxDuplicates": 3,
 		"maxDeckCost": 42
 	},
-	"logoSubText": "New Stuff!",
-	"botUrl": "http://51.68.21.110:8085",
-	"version": "0.7.0"
+	"logoSubText": "New Stuff!"
 }

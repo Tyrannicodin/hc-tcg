@@ -2,58 +2,67 @@ import {AttackModel} from '../../../models/attack-model'
 import {CardPosModel} from '../../../models/card-pos-model'
 import {GameModel} from '../../../models/game-model'
 import {HermitAttackType} from '../../../types/attack'
+import {CardInstance} from '../../../types/game-state'
 import {flipCoin} from '../../../utils/coinFlips'
-import HermitCard from '../../base/hermit-card'
+import Card, {Hermit, hermit} from '../../base/card'
 
-class GoatfatherRareHermitCard extends HermitCard {
-	constructor() {
-		super({
-			id: 'goatfather_rare',
-			numericId: 129,
-			name: 'Goatfather',
-			rarity: 'rare',
-			hermitType: 'prankster',
-			health: 270,
-			primary: {
-				name: 'Omerta',
-				cost: ['any'],
-				damage: 40,
-				power: null,
-			},
-			secondary: {
-				name: 'Anvil Drop',
-				cost: ['prankster', 'prankster'],
-				damage: 80,
-				power:
-					"Flip a coin.\n\nIf heads, do an additional 30hp damage to your opponent's active Hermit and 10hp damage to each Hermit below it on the game board.",
-			},
-		})
+class GoatfatherRareHermitCard extends Card {
+	props: Hermit = {
+		...hermit,
+		id: 'goatfather_rare',
+		numericId: 129,
+		name: 'Goatfather',
+		expansion: 'alter_egos',
+		palette: 'alter_egos',
+		background: 'alter_egos',
+		rarity: 'rare',
+		tokens: 2,
+		type: 'prankster',
+		health: 270,
+		primary: {
+			name: 'Omerta',
+			cost: ['any'],
+			damage: 40,
+			power: null,
+		},
+		secondary: {
+			name: 'Anvil Drop',
+			cost: ['prankster', 'prankster'],
+			damage: 80,
+			power:
+				"Flip a coin.\nIf heads, do an additional 30hp damage to your opponent's active Hermit and 10hp damage to each Hermit below it on the game board.",
+		},
 	}
 
-	override getAttacks(
+	override getAttack(
 		game: GameModel,
-		instance: string,
+		instance: CardInstance,
 		pos: CardPosModel,
 		hermitAttackType: HermitAttackType
 	) {
-		const attacks = super.getAttacks(game, instance, pos, hermitAttackType)
+		const attack = super.getAttack(game, instance, pos, hermitAttackType)
+
+		if (!attack) return attack
 
 		const {player, opponentPlayer, row, rowIndex} = pos
 
-		if (attacks[0].type !== 'secondary' || !row?.hermitCard) return attacks
+		if (attack.type !== 'secondary' || !row?.hermitCard) return attack
 
 		const coinFlip = flipCoin(player, row.hermitCard)
 
-		if (coinFlip[0] === 'tails') return attacks
+		if (coinFlip[0] === 'tails') return attack
+
+		attack.addDamage(this.props.id, 30)
 
 		const activeRow = opponentPlayer.board.activeRow
 		const rows = opponentPlayer.board.rows
-		if (activeRow === null || rowIndex === null) return attacks
-		for (let i = activeRow; i < rows.length; i++) {
+
+		if (activeRow === null || rowIndex === null) return attack
+		for (let i = activeRow + 1; i < rows.length; i++) {
 			const targetRow = rows[i]
 			if (!targetRow.hermitCard) continue
 
-			const attack = new AttackModel({
+			const newAttack = new AttackModel({
 				id: this.getInstanceKey(instance),
 				attacker: {
 					player,
@@ -66,23 +75,12 @@ class GoatfatherRareHermitCard extends HermitCard {
 					row: targetRow,
 				},
 				type: hermitAttackType,
-			}).addDamage(this.id, activeRow === i ? 30 : 10)
-			attacks.push(attack)
+				log: (values) => `, ${values.target} for ${values.damage} damage`,
+			}).addDamage(this.props.id, 10)
+			attack.addNewAttack(newAttack)
 		}
 
-		return attacks
-	}
-
-	override getExpansion() {
-		return 'alter_egos'
-	}
-
-	override getPalette() {
-		return 'alter_egos'
-	}
-
-	override getBackground() {
-		return 'alter_egos_background'
+		return attack
 	}
 }
 

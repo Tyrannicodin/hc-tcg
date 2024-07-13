@@ -1,62 +1,61 @@
-import {CARDS} from '../..'
 import {AttackModel} from '../../../models/attack-model'
 import {CardPosModel} from '../../../models/card-pos-model'
 import {GameModel} from '../../../models/game-model'
+import {CardInstance, CoinFlipT} from '../../../types/game-state'
 import {applySingleUse, getActiveRowPos} from '../../../utils/board'
 import {flipCoin} from '../../../utils/coinFlips'
 import {discardSingleUse} from '../../../utils/movement'
-import SingleUseCard from '../../base/single-use-card'
+import Card, {SingleUse, singleUse} from '../../base/card'
 
-class TridentSingleUseCard extends SingleUseCard {
-	constructor() {
-		super({
-			id: 'trident',
-			numericId: 150,
-			name: 'Trident',
-			rarity: 'rare',
-			description:
-				"Do 30hp damage to your opponent's active Hermit.\n\nFlip a coin.\n\nIf heads, this card is returned to your hand.",
-		})
+class TridentSingleUseCard extends Card {
+	props: SingleUse = {
+		...singleUse,
+		id: 'trident',
+		numericId: 150,
+		name: 'Trident',
+		expansion: 'alter_egos',
+		rarity: 'rare',
+		tokens: 2,
+		description:
+			"Do 30hp damage to your opponent's active Hermit.\nFlip a coin.\nIf heads, this card is returned to your hand.",
+		hasAttack: true,
 	}
 
-	override onAttach(game: GameModel, instance: string, pos: CardPosModel) {
+	override onAttach(game: GameModel, instance: CardInstance, pos: CardPosModel) {
 		const {player, opponentPlayer} = pos
 
-		player.hooks.getAttacks.add(instance, () => {
+		let coinflipResult: CoinFlipT | null = null
+
+		player.hooks.getAttack.add(instance, () => {
 			const activePos = getActiveRowPos(player)
-			if (!activePos) return []
+			if (!activePos) return null
 			const opponentActivePos = getActiveRowPos(opponentPlayer)
-			if (!opponentActivePos) return []
+			if (!opponentActivePos) return null
 
 			const tridentAttack = new AttackModel({
 				id: this.getInstanceKey(instance),
 				attacker: activePos,
 				target: opponentActivePos,
 				type: 'effect',
-			}).addDamage(this.id, 30)
+				log: (values) =>
+					`${values.defaultLog} to attack ${values.target} for ${values.damage} damage, then ${values.coinFlip}`,
+			}).addDamage(this.props.id, 30)
 
-			return [tridentAttack]
+			return tridentAttack
 		})
 
 		player.hooks.onAttack.add(instance, (attack) => {
 			const attackId = this.getInstanceKey(instance)
 			if (attack.id !== attackId) return
 
-			player.custom[this.getInstanceKey(instance)] = flipCoin(player, {
-				cardId: this.id,
-				cardInstance: instance,
-			})[0]
+			coinflipResult = flipCoin(player, instance)[0]
 
-			const opponentActiveHermitId = getActiveRowPos(opponentPlayer)?.row.hermitCard.cardId
-			applySingleUse(game, [
-				[`to attack `, 'plain'],
-				[`${opponentActiveHermitId ? CARDS[opponentActiveHermitId].name : ''} `, 'opponent'],
-			])
+			applySingleUse(game)
 		})
 
 		player.hooks.onApply.add(instance, () => {
 			// Return to hand
-			if (player.custom[this.getInstanceKey(instance)] === 'heads') {
+			if (coinflipResult === 'heads') {
 				// Reset single use card used, won't return to the hand otherwise
 				player.board.singleUseCardUsed = false
 				discardSingleUse(game, player)
@@ -64,21 +63,12 @@ class TridentSingleUseCard extends SingleUseCard {
 		})
 	}
 
-	override onDetach(game: GameModel, instance: string, pos: CardPosModel) {
+	override onDetach(game: GameModel, instance: CardInstance, pos: CardPosModel) {
 		const {player} = pos
 
-		player.hooks.getAttacks.remove(instance)
+		player.hooks.getAttack.remove(instance)
 		player.hooks.onApply.remove(instance)
 		player.hooks.onAttack.remove(instance)
-		delete player.custom[this.getInstanceKey(instance)]
-	}
-
-	override getExpansion() {
-		return 'alter_egos'
-	}
-
-	override canAttack() {
-		return true
 	}
 }
 

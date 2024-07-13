@@ -1,12 +1,11 @@
 import {useEffect, useRef, useState} from 'react'
 import {useSelector, useDispatch} from 'react-redux'
-import {CardT} from 'common/types/game-state'
+import {CardInstance} from 'common/types/game-state'
 import CardList from 'components/card-list'
 import Board from './board'
 import css from './game.module.scss'
 import {
 	AttackModal,
-	BorrowModal,
 	ChangeHermitModal,
 	ConfirmModal,
 	EndTurnModal,
@@ -25,13 +24,14 @@ import {
 	getPlayerState,
 	getEndGameOverlay,
 	getAvailableActions,
+	getPickRequestPickableSlots,
 } from 'logic/game/game-selectors'
 import {setOpenedModal, setSelectedCard, slotPicked} from 'logic/game/game-actions'
 import {DEBUG_CONFIG} from 'common/config'
 import {PickCardActionData} from 'common/types/action-data'
 import {equalCard} from 'common/utils/cards'
 import CopyAttackModal from './modals/copy-attack-modal'
-import {PickInfo} from 'common/types/server-requests'
+import {LocalCardInstance, PickInfo} from 'common/types/server-requests'
 
 const MODAL_COMPONENTS: Record<string, React.FC<any>> = {
 	attack: AttackModal,
@@ -42,7 +42,6 @@ const MODAL_COMPONENTS: Record<string, React.FC<any>> = {
 	'unmet-condition': UnmetConditionModal,
 
 	// Custom modals
-	borrow: BorrowModal,
 	copyAttack: CopyAttackModal,
 	selectCards: SelectCardsModal,
 }
@@ -65,6 +64,7 @@ function Game() {
 	const openedModal = useSelector(getOpenedModal)
 	const playerState = useSelector(getPlayerState)
 	const endGameOverlay = useSelector(getEndGameOverlay)
+	const pickRequestPickableSlots = useSelector(getPickRequestPickableSlots)
 	// const settings = useSelector(getSettings)
 	const dispatch = useDispatch()
 	const handRef = useRef<HTMLDivElement>(null)
@@ -73,7 +73,7 @@ function Game() {
 	if (!gameState || !playerState) return <p>Loading</p>
 	const [gameScale, setGameScale] = useState<number>(1)
 	const filteredCards = DEBUG_CONFIG.unlimitedCards
-		? gameState.hand.filter((c) => c.cardId.toLowerCase().includes(filter.toLowerCase()))
+		? gameState.hand.filter((c) => c.props.name.toLowerCase().includes(filter.toLowerCase()))
 		: gameState.hand
 
 	const gameWrapperRef = useRef<HTMLDivElement>(null)
@@ -88,7 +88,7 @@ function Game() {
 		dispatch(slotPicked(pickInfo))
 	}
 
-	const selectCard = (card: CardT) => {
+	const selectCard = (card: LocalCardInstance) => {
 		if (availableActions.includes('PICK_REQUEST')) {
 			const index = gameState.hand.findIndex((c) => equalCard(c, card))
 			if (index === -1) return
@@ -100,17 +100,20 @@ function Game() {
 					pickResult: {
 						playerId: gameState.playerId,
 						card: card,
-						slot: {
-							type: 'hand',
-							index,
-						},
+						type: 'hand',
+						rowIndex: null,
+						index,
 					},
 				},
 			}
 
 			dispatch(actionData)
 		} else {
-			dispatch(setSelectedCard(card))
+			if (equalCard(card, selectedCard)) {
+				dispatch(setSelectedCard(null))
+			} else {
+				dispatch(setSelectedCard(card))
+			}
 		}
 	}
 
@@ -164,9 +167,9 @@ function Game() {
 		}
 	}
 
-	// Play SFX on turn start
+	// Play SFX on turn start or when the player enters a game
 	useEffect(() => {
-		if (gameState.turn.currentPlayerId === gameState.playerId) {
+		if (gameState.turn.turnNumber === 1 || gameState.turn.currentPlayerId === gameState.playerId) {
 			dispatch(playSound('/sfx/Click.ogg'))
 		}
 	}, [gameState.turn.currentPlayerId])
@@ -209,6 +212,17 @@ function Game() {
 		return null
 	}
 
+	let unpickableCards: Array<LocalCardInstance> = []
+	const pickableCards = pickRequestPickableSlots
+		?.filter((slot) => slot.type === 'hand')
+		.map((slot) => slot.card?.instance)
+
+	if (pickableCards != undefined) {
+		for (let card of filteredCards) {
+			if (!pickableCards.includes(card.instance)) unpickableCards.push(card)
+		}
+	}
+
 	return (
 		<div className={css.game}>
 			<div className={css.playAreaWrapper} ref={gameWrapperRef}>
@@ -225,8 +239,9 @@ function Game() {
 					<CardList
 						wrap={false}
 						cards={filteredCards}
-						onClick={(card: CardT) => selectCard(card)}
+						onClick={(card: LocalCardInstance) => selectCard(card)}
 						selected={[selectedCard]}
+						unpickable={unpickableCards}
 					/>
 				</div>
 			</div>

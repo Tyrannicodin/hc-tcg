@@ -17,11 +17,11 @@ function ChangeHermitModal({closeModal, info}: Props) {
 	const playerState = useSelector(getPlayerState)
 	const gameState = useSelector(getGameState)
 
-	if (info.slot.type !== 'hermit' || !playerState || !gameState || info.rowIndex === undefined) {
+	if (info.type !== 'hermit' || !playerState || !gameState || info.rowIndex === null) {
 		throw new Error('This should never happen')
 	}
 
-	const hermitName = info.card?.cardId ? CARDS[info.card.cardId].name : ''
+	const hermitName = info.card?.props.name || ''
 	const hasActiveHermit = playerState.board.activeRow !== null
 	const canChange = !hasActiveHermit || availableActions.includes('CHANGE_ACTIVE_HERMIT')
 

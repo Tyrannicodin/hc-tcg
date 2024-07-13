@@ -1,97 +1,108 @@
-import {HERMIT_CARDS} from '../..'
-import {CardPosModel, getBasicCardPos} from '../../../models/card-pos-model'
+import {CardPosModel} from '../../../models/card-pos-model'
 import {GameModel} from '../../../models/game-model'
+import {slot} from '../../../slot'
 import {HermitAttackType} from '../../../types/attack'
-import {CardT} from '../../../types/game-state'
-import {getNonEmptyRows} from '../../../utils/board'
-import HermitCard from '../../base/hermit-card'
+import {CardInstance} from '../../../types/game-state'
+import Card, {Hermit, InstancedValue, hermit} from '../../base/card'
 
-class ZombieCleoRareHermitCard extends HermitCard {
-	constructor() {
-		super({
-			id: 'zombiecleo_rare',
-			numericId: 116,
-			name: 'Cleo',
-			rarity: 'rare',
-			hermitType: 'pvp',
-			health: 290,
-			primary: {
-				name: 'Dismissed',
-				cost: ['pvp'],
-				damage: 60,
-				power: null,
-			},
-			secondary: {
-				name: 'Puppetry',
-				cost: ['pvp', 'pvp', 'pvp'],
-				damage: 0,
-				power: 'Use an attack from any of your AFK Hermits.',
-			},
-		})
+class ZombieCleoRareHermitCard extends Card {
+	props: Hermit = {
+		...hermit,
+		id: 'zombiecleo_rare',
+		numericId: 116,
+		name: 'Cleo',
+		expansion: 'default',
+		rarity: 'rare',
+		tokens: 3,
+		type: 'pvp',
+		health: 290,
+		primary: {
+			name: 'Dismissed',
+			cost: ['pvp'],
+			damage: 60,
+			power: null,
+		},
+		secondary: {
+			name: 'Puppetry',
+			cost: ['pvp', 'pvp', 'pvp'],
+			damage: 0,
+			power: 'Use an attack from any of your AFK Hermits.',
+		},
 	}
 
-	override getAttacks(
+	pickCondition = slot.every(
+		slot.player,
+		slot.hermitSlot,
+		slot.not(slot.empty),
+		slot.not(slot.activeRow),
+		slot.not(slot.hasId(this.props.id)),
+		slot.not(slot.hasId('armor_stand'))
+	)
+
+	pickedAttack = new InstancedValue<{card: CardInstance; attack: HermitAttackType} | null>(
+		() => null
+	)
+
+	override getAttack(
 		game: GameModel,
-		instance: string,
+		instance: CardInstance,
 		pos: CardPosModel,
 		hermitAttackType: HermitAttackType
 	) {
-		const {player} = pos
-		const pickedCardKey = this.getInstanceKey(instance, 'pickedCard')
-		const attacks = super.getAttacks(game, instance, pos, hermitAttackType)
+		const attack = super.getAttack(game, instance, pos, hermitAttackType)
 
-		if (attacks[0].type !== 'secondary') return attacks
+		if (!attack || attack.type !== 'secondary') return attack
 
-		const pickedCard: CardT = player.custom[pickedCardKey]?.card
-		const attackType = player.custom[pickedCardKey]?.attack
+		const pickedCard = this.pickedAttack.get(instance)?.card
+		const attackType = this.pickedAttack.get(instance)?.attack
 
 		// Delete the stored data straight away
-		delete pos.player.custom[pickedCardKey]
+		this.pickedAttack.set(instance, null)
 
-		if (!pickedCard || !attackType) return []
-
-		// No loops please
-		if (pickedCard.cardId === this.id) return []
-
-		const hermitInfo = HERMIT_CARDS[pickedCard.cardId]
-		if (!hermitInfo) return []
+		if (!pickedCard || !attackType) return null
+		if (!pickedCard.isHermit()) return null
 
 		// Return that cards secondary attack
-		return hermitInfo.getAttacks(game, pickedCard.cardInstance, pos, attackType)
+		const newAttack = pickedCard.card.getAttack(game, pickedCard, pos, attackType)
+		if (!newAttack) return null
+		const attackName =
+			newAttack.type === 'primary' ? pickedCard.props.primary.name : pickedCard.props.secondary.name
+		newAttack.updateLog(
+			(values) =>
+				`${values.attacker} ${values.coinFlip ? values.coinFlip + ', then ' : ''} attacked ${
+					values.target
+				} with $v${pickedCard.props.name}'s ${attackName}$ for ${values.damage} damage`
+		)
+		return newAttack
 	}
 
-	override onAttach(game: GameModel, instance: string, pos: CardPosModel) {
+	override onAttach(game: GameModel, instance: CardInstance, pos: CardPosModel) {
 		const {player} = pos
-		const pickedCardKey = this.getInstanceKey(instance, 'pickedCard')
 
 		player.hooks.getAttackRequests.add(instance, (activeInstance, hermitAttackType) => {
 			// Make sure we are attacking
-			if (activeInstance !== instance) return
+			if (activeInstance.instance !== instance.instance) return
 
 			// Only secondary attack
 			if (hermitAttackType !== 'secondary') return
 
 			// Make sure we have an afk hermit to pick
-			const afk = getNonEmptyRows(player, true)
-			if (afk.length === 0) return
+			if (!game.someSlotFulfills(this.pickCondition)) return
 
 			game.addPickRequest({
 				playerId: player.id,
-				id: this.id,
+				id: this.props.id,
 				message: 'Pick one of your AFK Hermits',
-				onResult(pickResult) {
-					if (pickResult.playerId !== player.id) return 'FAILURE_INVALID_PLAYER'
-
-					const rowIndex = pickResult.rowIndex
-					if (rowIndex === undefined) return 'FAILURE_INVALID_SLOT'
-					if (rowIndex === player.board.activeRow) return 'FAILURE_INVALID_SLOT'
-
-					if (pickResult.slot.type !== 'hermit') return 'FAILURE_INVALID_SLOT'
-					const pickedCard = pickResult.card
-					if (!pickedCard) return 'FAILURE_INVALID_SLOT'
+				canPick: this.pickCondition,
+				onResult: (pickedSlot) => {
+					const rowIndex = pickedSlot.rowIndex
+					if (rowIndex === null) return
+					if (rowIndex === player.board.activeRow) return
+					const pickedCard = pickedSlot.card
+					if (!pickedCard) return
 
 					// No picking the same card as us
-					if (pickedCard.cardId === this.id) return 'FAILURE_WRONG_PICK'
+					if (pickedCard.props.id === this.props.id) return
 
 					game.addModalRequest({
 						playerId: player.id,
@@ -100,10 +111,10 @@ class ZombieCleoRareHermitCard extends HermitCard {
 							payload: {
 								modalName: 'Cleo: Choose an attack to copy',
 								modalDescription: "Which of the Hermit's attacks do you want to copy?",
-								cardPos: getBasicCardPos(game, pickedCard.cardInstance),
+								hermitCard: pickedCard.toLocalCardInstance(),
 							},
 						},
-						onResult(modalResult) {
+						onResult: (modalResult) => {
 							if (!modalResult) return 'FAILURE_INVALID_DATA'
 							if (modalResult.cancel) {
 								// Cancel this attack so player can choose a different hermit to imitate
@@ -114,25 +125,23 @@ class ZombieCleoRareHermitCard extends HermitCard {
 							if (!modalResult.pick) return 'FAILURE_INVALID_DATA'
 
 							// Store the card id to use when getting attacks
-							player.custom[pickedCardKey] = {
+							this.pickedAttack.set(instance, {
 								card: pickedCard,
 								attack: modalResult.pick,
-							}
+							})
 
 							// Add the attack requests of the chosen card as they would not be called otherwise
-							player.hooks.getAttackRequests.call(pickedCard.cardInstance, modalResult.pick)
+							player.hooks.getAttackRequests.call(pickedCard, modalResult.pick)
 
 							return 'SUCCESS'
 						},
-						onTimeout() {
-							player.custom[pickedCardKey] = {
+						onTimeout: () => {
+							this.pickedAttack.set(instance, {
 								card: pickedCard,
 								attack: 'primary',
-							}
+							})
 						},
 					})
-
-					return 'SUCCESS'
 				},
 				onTimeout() {
 					// We didn't pick someone so do nothing
@@ -140,18 +149,10 @@ class ZombieCleoRareHermitCard extends HermitCard {
 			})
 		})
 
-		// @TODO requires getActions to be able to remove
 		player.hooks.blockedActions.add(instance, (blockedActions) => {
-			// Block "Puppetry" if there are not AFK Hermit cards other than rare Cleo(s)
-			const afkHermits = getNonEmptyRows(player, true).filter((rowPos) => {
-				const hermitId = rowPos.row.hermitCard.cardId
-				return HERMIT_CARDS[hermitId] && hermitId !== this.id
-			}).length
-			if (
-				player.board.activeRow === pos.rowIndex &&
-				afkHermits <= 0 &&
-				!blockedActions.includes('SECONDARY_ATTACK')
-			) {
+			if (!game.someSlotFulfills(slot.every(slot.activeRow, slot.hasInstance(instance))))
+				return blockedActions
+			if (!game.someSlotFulfills(this.pickCondition)) {
 				blockedActions.push('SECONDARY_ATTACK')
 			}
 
@@ -159,12 +160,11 @@ class ZombieCleoRareHermitCard extends HermitCard {
 		})
 	}
 
-	override onDetach(game: GameModel, instance: string, pos: CardPosModel) {
+	override onDetach(game: GameModel, instance: CardInstance, pos: CardPosModel) {
 		const {player} = pos
-		const pickedCardKey = this.getInstanceKey(instance, 'pickedCard')
+		this.pickedAttack.clear(instance)
 		player.hooks.getAttackRequests.remove(instance)
 		player.hooks.blockedActions.remove(instance)
-		delete player.custom[pickedCardKey]
 	}
 }
 

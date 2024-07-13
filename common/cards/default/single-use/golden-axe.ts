@@ -1,78 +1,82 @@
-import {CARDS} from '../..'
 import {AttackModel} from '../../../models/attack-model'
-import {CardPosModel, getCardPos} from '../../../models/card-pos-model'
+import {CardPosModel} from '../../../models/card-pos-model'
 import {GameModel} from '../../../models/game-model'
-import {isTargetingPos} from '../../../utils/attacks'
+import {slot} from '../../../slot'
+import {CardInstance} from '../../../types/game-state'
 import {applySingleUse, getActiveRowPos} from '../../../utils/board'
-import SingleUseCard from '../../base/single-use-card'
+import Card, {SingleUse, singleUse} from '../../base/card'
 
-class GoldenAxeSingleUseCard extends SingleUseCard {
-	constructor() {
-		super({
-			id: 'golden_axe',
-			numericId: 31,
-			name: 'Golden Axe',
-			rarity: 'rare',
-			description:
-				"Do 40hp damage to your opponent's active Hermit.\n\nAny effect card attached to your opponent's active Hermit is ignored during this turn.",
-		})
+class GoldenAxeSingleUseCard extends Card {
+	props: SingleUse = {
+		...singleUse,
+		id: 'golden_axe',
+		numericId: 31,
+		name: 'Golden Axe',
+		expansion: 'default',
+		rarity: 'rare',
+		tokens: 2,
+		description:
+			"Do 40hp damage to your opponent's active Hermit.\nAny effect card attached to your opponent's active Hermit is ignored during this turn.",
+		hasAttack: true,
 	}
 
-	override onAttach(game: GameModel, instance: string, pos: CardPosModel) {
+	override onAttach(game: GameModel, instance: CardInstance, pos: CardPosModel) {
 		const {player, opponentPlayer} = pos
 
-		player.hooks.getAttacks.add(instance, () => {
+		let attacking = false
+
+		player.hooks.getAttack.add(instance, () => {
 			const activePos = getActiveRowPos(player)
-			if (!activePos) return []
+			if (!activePos) return null
 			const opponentActivePos = getActiveRowPos(opponentPlayer)
-			if (!opponentActivePos) return []
+			if (!opponentActivePos) return null
 
 			const axeAttack = new AttackModel({
 				id: this.getInstanceKey(instance),
 				attacker: activePos,
 				target: opponentActivePos,
 				type: 'effect',
-			}).addDamage(this.id, 40)
+				log: (values) =>
+					`${values.defaultLog} to attack ${values.target} for ${values.damage} damage`,
+			}).addDamage(this.props.id, 40)
 
-			return [axeAttack]
+			return axeAttack
 		})
 
 		player.hooks.beforeAttack.addBefore(instance, (attack) => {
 			const attackId = this.getInstanceKey(instance)
 			const opponentActivePos = getActiveRowPos(opponentPlayer)
-			if (!opponentActivePos) return
+
+			attacking = true
+
+			if (!opponentActivePos) return null
 
 			if (attack.id === attackId) {
-				const opponentActiveHermitId = getActiveRowPos(opponentPlayer)?.row.hermitCard.cardId
-				applySingleUse(game, [
-					[`to attack `, 'plain'],
-					[`${opponentActiveHermitId ? CARDS[opponentActiveHermitId].name : ''} `, 'opponent'],
-				])
+				applySingleUse(game)
 			}
 
-			attack.shouldIgnoreCards.push((instance) => {
-				const pos = getCardPos(game, instance)
-				if (!pos || !pos.row || !pos.row.effectCard) return false
+			attack.shouldIgnoreSlots.push(slot.every(slot.opponent, slot.attachSlot, slot.activeRow))
+		})
 
-				// It's not the targets effect card, do not ignore it
-				if (pos.slot.type !== 'effect') return false
-
-				// Not attached to the opponent's active Hermit, do not ignore it
-				if (pos.rowIndex !== opponentActivePos.rowIndex) return false
-
-				return true
-			})
+		player.hooks.afterAttack.add(instance, () => {
+			player.hooks.getAttack.remove(instance)
+			player.hooks.afterAttack.remove(instance)
 		})
 
 		player.hooks.onTurnEnd.add(instance, () => {
-			player.hooks.getAttacks.remove(instance)
 			player.hooks.beforeAttack.remove(instance)
-			player.hooks.afterAttack.remove(instance)
-		})
-	}
+			player.hooks.onTurnEnd.remove(instance)
 
-	override canAttack() {
-		return true
+			attacking = false
+		})
+
+		player.hooks.onDetach.add(instance, () => {
+			player.hooks.getAttack.remove(instance)
+			player.hooks.onTurnEnd.remove(instance)
+			if (!attacking) {
+				player.hooks.beforeAttack.remove(instance)
+			}
+		})
 	}
 }
 

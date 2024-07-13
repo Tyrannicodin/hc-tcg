@@ -1,67 +1,73 @@
-import StatusEffect from './status-effect'
+import StatusEffect, {StatusEffectProps, Counter, statusEffect} from './status-effect'
 import {GameModel} from '../models/game-model'
-import {HERMIT_CARDS} from '../cards'
-import {CardPosModel, getBasicCardPos} from '../models/card-pos-model'
+import {CardPosModel} from '../models/card-pos-model'
 import {removeStatusEffect} from '../utils/board'
-import {StatusEffectT} from '../types/game-state'
+import {StatusEffectInstance} from '../types/game-state'
+import {slot} from '../slot'
 
 class SleepingStatusEffect extends StatusEffect {
-	constructor() {
-		super({
-			id: 'sleeping',
-			name: 'Sleep',
-			description:
-				'While your Hermit is sleeping, you can not attack or make your active Hermit go AFK. If sleeping Hermit is made AFK by your opponent, they wake up.',
-			duration: 3,
-			counter: false,
-			damageEffect: false,
-			visible: true,
-		})
+	props: StatusEffectProps & Counter = {
+		...statusEffect,
+		id: 'sleeping',
+		name: 'Sleep',
+		description:
+			'While your Hermit is sleeping, you can not attack or make your active Hermit go AFK. If sleeping Hermit is made AFK by your opponent, they wake up.',
+		counter: 3,
+		counterType: 'turns',
+		applyCondition: slot.every(slot.hermitSlot, slot.not(slot.empty)),
 	}
 
-	override onApply(game: GameModel, statusEffectInfo: StatusEffectT, pos: CardPosModel) {
-		const {player, card, row} = pos
+	override onApply(game: GameModel, instance: StatusEffectInstance, pos: CardPosModel) {
+		const {player, card, row, rowIndex} = pos
 
-		if (!card || !row?.hermitCard) return
+		if (!card || !row?.hermitCard || rowIndex === null || !card.card.isHealth()) return
 
-		game.state.statusEffects.push(statusEffectInfo)
-		game.addBlockedActions(this.id, 'PRIMARY_ATTACK', 'SECONDARY_ATTACK', 'CHANGE_ACTIVE_HERMIT')
-		if (!statusEffectInfo.duration) statusEffectInfo.duration = this.duration
+		game.addBlockedActions(
+			this.props.id,
+			'PRIMARY_ATTACK',
+			'SECONDARY_ATTACK',
+			'CHANGE_ACTIVE_HERMIT'
+		)
 
-		row.health = HERMIT_CARDS[card.cardId].health
+		row.health = card.card.props.health
 
-		player.hooks.onTurnStart.add(statusEffectInfo.statusEffectInstance, () => {
-			const targetPos = getBasicCardPos(game, statusEffectInfo.targetInstance)
-			if (!targetPos || !statusEffectInfo.duration) return
-			statusEffectInfo.duration--
+		game.battleLog.addEntry(
+			player.id,
+			`$p${card.props.name}$ went to $eSleep$ and restored $gfull health$`
+		)
 
-			if (statusEffectInfo.duration === 0 || player.board.activeRow !== targetPos.rowIndex) {
-				removeStatusEffect(game, pos, statusEffectInfo.statusEffectInstance)
+		player.hooks.onTurnStart.add(instance, () => {
+			const targetPos = game.findSlot(slot.hasInstance(instance.targetInstance))
+			if (!targetPos) return
+			if (instance.counter !== null) instance.counter--
+
+			if (instance.counter === 0 || player.board.activeRow !== targetPos.rowIndex) {
+				removeStatusEffect(game, pos, instance)
 				return
 			}
 
 			if (player.board.activeRow === targetPos.rowIndex)
 				game.addBlockedActions(
-					this.id,
+					this.props.id,
 					'PRIMARY_ATTACK',
 					'SECONDARY_ATTACK',
 					'CHANGE_ACTIVE_HERMIT'
 				)
 		})
 
-		player.hooks.afterDefence.add(statusEffectInfo.statusEffectInstance, (attack) => {
+		player.hooks.afterDefence.add(instance, (attack) => {
 			const attackTarget = attack.getTarget()
 			if (!attackTarget) return
-			if (attackTarget.row.hermitCard.cardInstance !== statusEffectInfo.targetInstance) return
+			if (attackTarget.row.hermitCard.instance !== instance.targetInstance.instance) return
 			if (attackTarget.row.health > 0) return
-			removeStatusEffect(game, pos, statusEffectInfo.statusEffectInstance)
+			removeStatusEffect(game, pos, instance)
 		})
 	}
 
-	override onRemoval(game: GameModel, statusEffectInfo: StatusEffectT, pos: CardPosModel) {
+	override onRemoval(game: GameModel, instance: StatusEffectInstance, pos: CardPosModel) {
 		const {player} = pos
-		player.hooks.onTurnStart.remove(statusEffectInfo.statusEffectInstance)
-		player.hooks.afterDefence.remove(statusEffectInfo.statusEffectInstance)
+		player.hooks.onTurnStart.remove(instance)
+		player.hooks.afterDefence.remove(instance)
 	}
 }
 

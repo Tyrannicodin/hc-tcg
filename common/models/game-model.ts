@@ -4,21 +4,30 @@ import {
 	GameState,
 	ActionResult,
 	TurnActions,
-	BattleLogT,
 	PlayerState,
+	Message,
+	CardInstance,
 } from '../types/game-state'
-import {MessageInfoT} from '../types/chat'
 import {getGameState} from '../utils/state-gen'
-import {ModalRequest, PickRequest} from '../types/server-requests'
+import {
+	CopyAttack,
+	ModalRequest,
+	PickInfo,
+	PickRequest,
+	PickedSlotType,
+	SelectCards,
+} from '../types/server-requests'
 import {BattleLogModel} from './battle-log-model'
-import {getSlotPos} from '../utils/board'
+import {SlotCondition, slot} from '../slot'
+import {SlotInfo} from '../types/cards'
+import {getCardPos} from './card-pos-model'
 
 export class GameModel {
 	private internalCreatedTime: number
 	private internalId: string
 	private internalCode: string | null
 
-	public chat: Array<MessageInfoT>
+	public chat: Array<Message>
 	public battleLog: BattleLogModel
 	public players: Record<string, PlayerModel>
 	public task: any
@@ -213,6 +222,8 @@ export class GameModel {
 		}
 	}
 
+	public addModalRequest(newRequest: SelectCards.Request, before?: boolean): void
+	public addModalRequest(newRequest: CopyAttack.Request, before?: boolean): void
 	public addModalRequest(newRequest: ModalRequest, before = false) {
 		if (before) {
 			this.state.modalRequests.unshift(newRequest)
@@ -233,6 +244,19 @@ export class GameModel {
 		return this.state.pickRequests.length > 0 || this.state.modalRequests.length > 0
 	}
 
+	/** Update the cards that the players are able to select */
+	public updateCardsCanBePlacedIn() {
+		const getCardsCanBePlacedIn = (player: PlayerState) => {
+			return player.hand.reduce((cards, card) => {
+				cards.push([card, this.getPickableSlots(card.card.props.attachCondition)])
+				return cards
+			}, [] as Array<[CardInstance, Array<PickInfo>]>)
+		}
+
+		this.currentPlayer.cardsCanBePlacedIn = getCardsCanBePlacedIn(this.currentPlayer)
+		this.opponentPlayer.cardsCanBePlacedIn = getCardsCanBePlacedIn(this.opponentPlayer)
+	}
+
 	/** Helper method to change the active row. Returns whether or not the change was successful. */
 	public changeActiveRow(player: PlayerState, newRow: number | null): boolean {
 		const currentActiveRow = player.board.activeRow
@@ -245,11 +269,11 @@ export class GameModel {
 		if (results.includes(false)) return false
 
 		// Create battle log entry
-		if (newRow && currentActiveRow) {
-			const oldHermit = player.board.rows[currentActiveRow]?.hermitCard
+		if (newRow !== null) {
 			const newHermit = player.board.rows[newRow].hermitCard
-
-			this.battleLog.addChangeHermitEntry(oldHermit, newHermit)
+			const oldHermit =
+				currentActiveRow !== null ? player.board.rows[currentActiveRow].hermitCard : null
+			this.battleLog.addChangeRowEntry(player, newRow, oldHermit, newHermit)
 		}
 
 		// Change the active row
@@ -263,11 +287,6 @@ export class GameModel {
 
 	/**Helper method to swap the positions of two rows on the board. Returns whether or not the change was successful. */
 	public swapRows(player: PlayerState, oldRow: number, newRow: number): boolean {
-		const oldSlotPos = getSlotPos(player, oldRow, 'hermit')
-
-		const results = player.hooks.onSlotChange.call(oldSlotPos)
-		if (results.includes(false)) return false
-
 		const activeRowChanged = this.changeActiveRow(player, newRow)
 		if (!activeRowChanged) return false
 
@@ -276,5 +295,138 @@ export class GameModel {
 		player.board.rows[newRow] = oldRowState
 
 		return true
+	}
+
+	/** Return the slots that fullfil a condition given by the predicate */
+	public filterSlots(...predicates: Array<SlotCondition>): Array<SlotInfo> {
+		let predicate = slot.every(...predicates)
+		let pickableSlots: Array<SlotInfo> = []
+
+		for (const player of Object.values(this.state.players)) {
+			const opponentPlayer = Object.values(this.state.players).filter(
+				(opponent) => opponent.id !== player.id
+			)[0]
+
+			for (let rowIndex = 0; rowIndex < player.board.rows.length; rowIndex++) {
+				const row = player.board.rows[rowIndex]
+
+				const appendAttachCondition = (
+					type: PickedSlotType,
+					index: number,
+					cardInstance: CardInstance | null
+				) => {
+					const slotInfo = {
+						player,
+						opponentPlayer,
+						type,
+						index,
+						rowIndex,
+						row,
+						card: cardInstance,
+					}
+					if (predicate(this, slotInfo)) {
+						pickableSlots.push(slotInfo)
+					}
+				}
+
+				for (const [index, item] of row.itemCards.entries()) {
+					appendAttachCondition('item', index, item)
+				}
+				appendAttachCondition('attach', 3, row.effectCard)
+				appendAttachCondition('hermit', 4, row.hermitCard)
+			}
+
+			for (const card of player.hand) {
+				const slotInfo: SlotInfo = {
+					player: player,
+					opponentPlayer: opponentPlayer,
+					type: 'hand',
+					index: null,
+					rowIndex: null,
+					row: null,
+					card,
+				}
+				if (predicate(this, slotInfo)) pickableSlots.push(slotInfo)
+			}
+		}
+
+		const singleUseSlotInfo: SlotInfo = {
+			player: this.currentPlayer,
+			opponentPlayer: this.opponentPlayer,
+			type: 'single_use',
+			index: null,
+			rowIndex: null,
+			row: null,
+			card: this.currentPlayer.board.singleUseCard,
+		}
+
+		if (predicate(this, singleUseSlotInfo)) {
+			pickableSlots.push(singleUseSlotInfo)
+		}
+
+		return pickableSlots
+	}
+
+	public findSlot(...predicates: Array<SlotCondition>): SlotInfo | null {
+		return this.filterSlots(slot.every(...predicates))[0]
+	}
+
+	/**
+	 * Swaps the positions of two cards on the board.
+	 * This function does not check whether the cards can be placed in the other card's slot.
+	 */
+	public swapSlots(
+		slotA: SlotInfo | null,
+		slotB: SlotInfo | null,
+		withoutDetach: boolean = false
+	): void {
+		if (!slotA || !slotB) return
+		if (slotA.type !== slotB.type) return
+		if (!slotA.row || !slotB.row) return
+
+		// Swap
+		if (slotA.type === 'hermit') {
+			let tempCard = slotA.row?.hermitCard
+			slotA.row.hermitCard = slotB.row.hermitCard
+			slotB.row.hermitCard = tempCard
+		} else if (slotA.type === 'attach') {
+			let tempCard = slotA.row.effectCard
+			slotA.row.effectCard = slotB.row.effectCard
+			slotB.row.effectCard = tempCard
+		} else if (slotA.type === 'item') {
+			if (slotA.index === null || slotB.index === null) return
+			let tempCard = slotA.row.itemCards[slotA.index]
+			slotA.row.itemCards[slotA.index] = slotB.row.itemCards[slotB.index]
+			slotB.row.itemCards[slotB.index] = tempCard
+		}
+
+		if (!withoutDetach) {
+			// onAttach
+			;[slotA, slotB].forEach((slot) => {
+				if (!slot.card) return
+				const cardPos = getCardPos(this, slot.card)
+				if (!cardPos) return
+
+				slot.card.card.onAttach(this, slot.card, cardPos)
+
+				cardPos.player.hooks.onAttach.call(slot.card)
+			})
+		}
+	}
+
+	public getPickableSlots(predicate: SlotCondition): Array<PickInfo> {
+		return this.filterSlots(predicate).map((slot) => {
+			return {
+				playerId: slot.player.id,
+				rowIndex: slot.rowIndex,
+				card: slot.card?.toLocalCardInstance() || null,
+				type: slot.type,
+				index: slot.index,
+			}
+		})
+	}
+
+	public someSlotFulfills(predicate: SlotCondition) {
+		return this.filterSlots(predicate).length !== 0
 	}
 }

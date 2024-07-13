@@ -1,32 +1,38 @@
-import HermitCard from '../../base/hermit-card'
-import {HERMIT_CARDS} from '../..'
 import {GameModel} from '../../../models/game-model'
 import {CardPosModel} from '../../../models/card-pos-model'
-class PotatoBoyRareHermitCard extends HermitCard {
-	constructor() {
-		super({
-			id: 'potatoboy_rare',
-			numericId: 135,
-			name: 'Potato Boy',
-			rarity: 'rare',
-			hermitType: 'farm',
-			health: 270,
-			primary: {
-				name: 'Peace & Love',
-				cost: ['farm'],
-				damage: 0,
-				power: 'Heal all Hermits that are adjacent to your active Hermit 40hp.',
-			},
-			secondary: {
-				name: 'Volcarbo',
-				cost: ['farm', 'farm', 'any'],
-				damage: 90,
-				power: null,
-			},
-		})
+import {getActiveRow} from '../../../utils/board'
+import {slot} from '../../../slot'
+import {CardInstance, healHermit} from '../../../types/game-state'
+import Card, {Hermit, hermit} from '../../base/card'
+
+class PotatoBoyRareHermitCard extends Card {
+	props: Hermit = {
+		...hermit,
+		id: 'potatoboy_rare',
+		numericId: 135,
+		name: 'Potato Boy',
+		expansion: 'alter_egos',
+		palette: 'alter_egos',
+		background: 'alter_egos',
+		rarity: 'rare',
+		tokens: 1,
+		type: 'farm',
+		health: 270,
+		primary: {
+			name: 'Peace & Love',
+			cost: ['farm'],
+			damage: 0,
+			power: 'Heal all Hermits that are adjacent to your active Hermit 40hp.',
+		},
+		secondary: {
+			name: 'Volcarbo',
+			cost: ['farm', 'farm', 'any'],
+			damage: 90,
+			power: null,
+		},
 	}
 
-	override onAttach(game: GameModel, instance: string, pos: CardPosModel) {
+	override onAttach(game: GameModel, instance: CardInstance, pos: CardPosModel) {
 		const {player} = pos
 
 		player.hooks.onAttack.add(instance, (attack) => {
@@ -37,35 +43,33 @@ class PotatoBoyRareHermitCard extends HermitCard {
 
 			const rows = player.board.rows
 
-			const targetRows = [rows[activeRow - 1], rows[activeRow + 1]].filter(Boolean)
+			const activeHermit = getActiveRow(player)?.hermitCard
+			if (!activeHermit) return
 
-			targetRows.forEach((row) => {
-				if (!row.hermitCard) return
-				const hermitInfo = HERMIT_CARDS[row.hermitCard.cardId]
-				if (hermitInfo) {
-					const maxHealth = Math.max(row.health, hermitInfo.health)
-					row.health = Math.min(row.health + 40, maxHealth)
-				}
-			})
+			game
+				.filterSlots(
+					slot.player,
+					slot.adjacentTo(slot.activeRow),
+					slot.hermitSlot,
+					slot.not(slot.empty)
+				)
+				.forEach(({row, rowIndex, card}) => {
+					if (!card || rowIndex === null) return
+					healHermit(row, 40)
+					game.battleLog.addEntry(
+						player.id,
+						`$p${card.props.name} (${rowIndex + 1})$ was healed $g40hp$ by $p${
+							activeHermit.props.name
+						}$`
+					)
+				})
 		})
 	}
 
-	override onDetach(game: GameModel, instance: string, pos: CardPosModel) {
+	override onDetach(game: GameModel, instance: CardInstance, pos: CardPosModel) {
 		const {player} = pos
 		// Remove hooks
 		player.hooks.onAttack.remove(instance)
-	}
-
-	override getExpansion() {
-		return 'alter_egos'
-	}
-
-	override getPalette() {
-		return 'alter_egos'
-	}
-
-	override getBackground() {
-		return 'alter_egos_background'
 	}
 }
 

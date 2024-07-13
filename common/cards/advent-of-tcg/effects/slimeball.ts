@@ -1,64 +1,46 @@
-import {CARDS} from '../..'
 import {CardPosModel} from '../../../models/card-pos-model'
 import {GameModel} from '../../../models/game-model'
-import {TurnActions} from '../../../types/game-state'
-import {discardCard, isSlotEmpty} from '../../../utils/movement'
-import {CanAttachResult} from '../../base/card'
-import EffectCard from '../../base/effect-card'
+import {slot} from '../../../slot'
+import {CardInstance} from '../../../types/game-state'
+import Card, {Attach, attach} from '../../base/card'
 
-class SlimeballEffectCard extends EffectCard {
-	constructor() {
-		super({
-			id: 'slimeball',
-			numericId: 204,
-			name: 'Slimeball',
-			rarity: 'ultra_rare',
-			description:
-				"Attach to any Hermit, including your opponent's. That Hermit and its attached items will not be removed from the slot they are attached to, unless that Hermit is knocked out. After either player attempts to remove any of these cards, Slimeball will be discarded.",
-		})
+class SlimeballEffectCard extends Card {
+	props: Attach = {
+		...attach,
+		id: 'slimeball',
+		numericId: 204,
+		name: 'Slimeball',
+		rarity: 'ultra_rare',
+		tokens: 0,
+		expansion: 'advent_of_tcg',
+		description:
+			"Attach to any Hermit, including your opponent's. That Hermit and its attached items will not be removed from the slot they are attached to, unless that Hermit is knocked out. Attached cards cannot be removed until slimeball is discarded.",
+		attachCondition: slot.every(
+			slot.opponent,
+			slot.attachSlot,
+			slot.empty,
+			slot.rowHasHermit,
+			slot.actionAvailable('PLAY_EFFECT_CARD'),
+			slot.not(slot.frozen)
+		),
 	}
 
-	override canAttach(game: GameModel, pos: CardPosModel) {
-		const result: CanAttachResult = []
-		if (pos.slot.type !== 'effect') result.push('INVALID_SLOT')
-
-		if (!pos.row?.hermitCard) result.push('UNMET_CONDITION_SILENT')
-
-		return result
-	}
-
-	override onAttach(game: GameModel, instance: string, pos: CardPosModel) {
+	override onAttach(game: GameModel, instance: CardInstance, pos: CardPosModel) {
 		const {player} = pos
 
-		player.hooks.onSlotChange.add(instance, (slot) => {
-			if (!isSlotEmpty(slot) && slot.rowIndex === pos.rowIndex) {
-				pos.player.hooks.onSlotChange.remove(instance)
-				discardCard(game, pos.card)
-				return false
-			}
-			return true
+		player.hooks.freezeSlots.add(instance, () => {
+			return slot.every(
+				slot.player,
+				slot.rowIndex(pos.rowIndex),
+				slot.not(slot.attachSlot),
+				slot.not(slot.empty)
+			)
 		})
 	}
 
-	override onDetach(game: GameModel, instance: string, pos: CardPosModel) {
-		pos.player.hooks.onSlotChange.remove(instance)
+	override onDetach(game: GameModel, instance: CardInstance, pos: CardPosModel) {
+		pos.player.hooks.freezeSlots.remove(instance)
 		pos.player.hooks.onDetach.remove(instance)
-	}
-
-	public override getActions(game: GameModel): TurnActions {
-		const {currentPlayer, opponentPlayer} = game
-
-		const rows = [...currentPlayer.board.rows, ...opponentPlayer.board.rows]
-
-		const spaceForEffect = rows.some((row) => {
-			return !!row.hermitCard && !row.effectCard
-		})
-
-		return spaceForEffect ? ['PLAY_EFFECT_CARD'] : []
-	}
-
-	public override getExpansion(): string {
-		return 'advent_of_tcg'
 	}
 }
 

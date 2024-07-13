@@ -1,38 +1,33 @@
 import {AttackModel} from '../../../models/attack-model'
 import {CardPosModel} from '../../../models/card-pos-model'
 import {GameModel} from '../../../models/game-model'
-import {getActiveRowPos, getRowPos} from '../../../utils/board'
-import EffectCard from '../../base/effect-card'
+import {slot} from '../../../slot'
+import {CardInstance} from '../../../types/game-state'
+import {executeExtraAttacks} from '../../../utils/attacks'
+import {getActiveRowPos} from '../../../utils/board'
+import Card, {Attach, attach} from '../../base/card'
 
-class WolfEffectCard extends EffectCard {
-	constructor() {
-		super({
-			id: 'wolf',
-			numericId: 108,
-			name: 'Wolf',
-			rarity: 'rare',
-			description:
-				"Attach to your active Hermit.\n\nIf any of your Hermits take damage on your opponent's turn, your opponent's active Hermit takes 20hp damage for each Wolf card you have on the game board.",
-		})
+class WolfEffectCard extends Card {
+	props: Attach = {
+		...attach,
+		id: 'wolf',
+		numericId: 108,
+		name: 'Wolf',
+		expansion: 'default',
+		rarity: 'rare',
+		tokens: 1,
+		description:
+			"Attach to your active Hermit.\nIf any of your Hermits take damage on your opponent's turn, your opponent's active Hermit takes 20hp damage for each Wolf card you have on the game board.",
+		attachCondition: slot.every(attach.attachCondition, slot.activeRow),
 	}
 
-	override canAttach(game: GameModel, pos: CardPosModel) {
-		const result = super.canAttach(game, pos)
-		const {player} = pos
-
-		// wolf addition - hermit must also be active to attach
-		if (!(player.board.activeRow === pos.rowIndex)) result.push('INVALID_SLOT')
-
-		return result
-	}
-
-	override onAttach(game: GameModel, instance: string, pos: CardPosModel) {
+	override onAttach(game: GameModel, instance: CardInstance, pos: CardPosModel) {
 		const {player, opponentPlayer} = pos
-		const activated = this.getInstanceKey(instance, 'activated')
+		let activated = false
 
 		opponentPlayer.hooks.onTurnStart.add(instance, () => {
 			// Allow another activation this turn
-			player.custom[activated] = false
+			activated = false
 		})
 
 		opponentPlayer.hooks.afterAttack.add(instance, (attack) => {
@@ -48,8 +43,9 @@ class WolfEffectCard extends EffectCard {
 			// Make sure the attack is doing some damage
 			if (attack.calculateDamage() <= 0) return
 
-			if (player.custom[activated]) return
-			player.custom[activated] = true
+			if (activated) return
+			activated = true
+			if (!pos.row || !pos.row.hermitCard || pos.rowIndex === null) return
 
 			// Add a backlash attack, targeting the opponent's active hermit.
 			// Note that the opponent active row could be null, but then the attack will just do nothing.
@@ -57,21 +53,21 @@ class WolfEffectCard extends EffectCard {
 
 			const backlashAttack = new AttackModel({
 				id: this.getInstanceKey(instance, 'backlash'),
-				attacker: getRowPos(pos),
+				attacker: {row: pos.row, player: pos.player, rowIndex: pos.rowIndex},
 				target: opponentActiveRow,
 				type: 'effect',
 				isBacklash: true,
-			}).addDamage(this.id, 20)
+				log: (values) => `${values.target} took ${values.damage} damage from $eWolf$`,
+			}).addDamage(this.props.id, 20)
 
-			attack.addNewAttack(backlashAttack)
+			executeExtraAttacks(game, [backlashAttack])
 		})
 	}
 
-	override onDetach(game: GameModel, instance: string, pos: CardPosModel) {
+	override onDetach(game: GameModel, instance: CardInstance, pos: CardPosModel) {
 		const {player, opponentPlayer} = pos
 
 		// Delete hooks and custom
-		delete player.custom[this.getInstanceKey(instance, 'activated')]
 		opponentPlayer.hooks.onTurnStart.remove(instance)
 		opponentPlayer.hooks.afterAttack.remove(instance)
 	}

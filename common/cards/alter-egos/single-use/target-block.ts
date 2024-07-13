@@ -1,57 +1,51 @@
-import {CARDS} from '../..'
-import {CardPosModel, getCardPos} from '../../../models/card-pos-model'
+import {CardPosModel} from '../../../models/card-pos-model'
 import {GameModel} from '../../../models/game-model'
-import {applySingleUse, getNonEmptyRows} from '../../../utils/board'
-import SingleUseCard from '../../base/single-use-card'
+import {slot} from '../../../slot'
+import {CardInstance} from '../../../types/game-state'
+import {applySingleUse} from '../../../utils/board'
+import Card, {SingleUse, singleUse} from '../../base/card'
 
-class TargetBlockSingleUseCard extends SingleUseCard {
-	constructor() {
-		super({
-			id: 'target_block',
-			numericId: 149,
-			name: 'Target Block',
-			rarity: 'rare',
-			description:
-				"Choose one of your opponent's AFK Hermits to take all damage done during this turn.",
-		})
+class TargetBlockSingleUseCard extends Card {
+	pickCondition = slot.every(
+		slot.opponent,
+		slot.hermitSlot,
+		slot.not(slot.activeRow),
+		slot.not(slot.empty)
+	)
+
+	props: SingleUse = {
+		...singleUse,
+		id: 'target_block',
+		numericId: 149,
+		name: 'Target Block',
+		expansion: 'alter_egos',
+		rarity: 'rare',
+		tokens: 3,
+		description:
+			"Choose one of your opponent's AFK Hermits to take all damage done during this turn.",
+		attachCondition: slot.every(
+			singleUse.attachCondition,
+			slot.someSlotFulfills(this.pickCondition)
+		),
 	}
 
-	override canAttach(game: GameModel, pos: CardPosModel) {
-		const result = super.canAttach(game, pos)
-		const {opponentPlayer} = pos
-
-		// Inactive Hermits
-		if (getNonEmptyRows(opponentPlayer, true).length === 0) result.push('UNMET_CONDITION')
-
-		return result
-	}
-
-	override onAttach(game: GameModel, instance: string, pos: CardPosModel) {
+	override onAttach(game: GameModel, instance: CardInstance, pos: CardPosModel) {
 		const {player, opponentPlayer} = pos
-		const ignoreThisWeakness = this.getInstanceKey(instance, 'ignoreThisWeakness')
 
 		game.addPickRequest({
 			playerId: player.id,
-			id: this.id,
+			id: this.props.id,
 			message: "Pick one of your opponent's AFK Hermits",
-			onResult(pickResult) {
-				if (pickResult.playerId !== opponentPlayer.id) return 'FAILURE_INVALID_PLAYER'
-
-				const rowIndex = pickResult.rowIndex
-				if (rowIndex === undefined) return 'FAILURE_INVALID_SLOT'
-				if (rowIndex === opponentPlayer.board.activeRow) return 'FAILURE_INVALID_SLOT'
-
-				if (pickResult.slot.type !== 'hermit') return 'FAILURE_INVALID_SLOT'
-				if (!pickResult.card) return 'FAILURE_INVALID_SLOT'
+			canPick: this.pickCondition,
+			onResult(pickedSlot) {
+				const rowIndex = pickedSlot.rowIndex
+				if (!pickedSlot.card || rowIndex === null) return
 
 				const row = opponentPlayer.board.rows[rowIndex]
-				if (!row.hermitCard) return 'FAILURE_INVALID_SLOT'
+				if (!row.hermitCard) return
 
 				// Apply the card
-				applySingleUse(game, [
-					[`to target `, 'plain'],
-					[`${CARDS[row.hermitCard.cardId].name} `, 'opponent'],
-				])
+				applySingleUse(game, pickedSlot)
 
 				// Redirect all future attacks this turn
 				player.hooks.beforeAttack.add(instance, (attack) => {
@@ -63,8 +57,6 @@ class TargetBlockSingleUseCard extends SingleUseCard {
 						row,
 					})
 				})
-
-				return 'SUCCESS'
 			},
 		})
 
@@ -72,12 +64,7 @@ class TargetBlockSingleUseCard extends SingleUseCard {
 			player.hooks.beforeAttack.remove(instance)
 			player.hooks.onTurnEnd.remove(instance)
 			opponentPlayer.hooks.onDefence.remove(instance)
-			delete player.custom[ignoreThisWeakness]
 		})
-	}
-
-	override getExpansion() {
-		return 'alter_egos'
 	}
 }
 
