@@ -7,7 +7,7 @@ import {Hermit} from '../../types'
 const PostmasterPearlRare: Hermit = {
 	...hermit,
 	id: 'postmasterpearl_rare',
-	numericId: 254,
+	numericId: 255,
 	name: 'Postmaster Pearl',
 	expansion: 'advent_of_tcg_ii',
 	palette: 'advent_of_tcg',
