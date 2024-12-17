@@ -20,7 +20,7 @@ const CyberpunkImpulseRare: Hermit = {
 		cost: [],
 		damage: 0,
 		power:
-			'Farm item cards attached to this act as wild items attached to adjacent hermits.',
+			'Farm item cards attached to this act as wild items attached to adjacent hermits for their attacks.',
 		passive: true,
 	},
 	secondary: {
