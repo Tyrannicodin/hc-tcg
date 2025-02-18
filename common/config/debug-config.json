@@ -1,0 +1,19 @@
+{
+	"disableDeckValidation": true,
+	"extraStartingCards": ["dwarf_impulse_rare", "golden_axe", "iron_armor"],
+	"noItemRequirements": true,
+	"forceCoinFlip": false,
+	"oneShotMode": false,
+	"disableDamage": false,
+	"disableDeckOut": false,
+	"startWithAllCards": false,
+	"unlimitedCards": true,
+	"blockedActions": [],
+	"availableActions": [],
+	"showHooksState": {
+		"enabled": false,
+		"clearConsole": true
+	},
+	"autoEndTurn": false,
+	"logAttackHistory": true
+}

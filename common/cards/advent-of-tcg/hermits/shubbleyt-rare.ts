@@ -1,52 +1,70 @@
-import {CardPosModel} from '../../../models/card-pos-model'
+import {
+	CardComponent,
+	DeckSlotComponent,
+	ObserverComponent,
+} from '../../../components'
 import {GameModel} from '../../../models/game-model'
-import {CardInstance} from '../../../types/game-state'
-import Card, {Hermit, hermit} from '../../base/card'
+import {SelectCards} from '../../../types/modal-requests'
+import {afterAttack} from '../../../types/priorities'
+import {hermit} from '../../defaults'
+import {Hermit} from '../../types'
 
-class ShubbleYTRareHermitCard extends Card {
-	props: Hermit = {
-		...hermit,
-		id: 'shubbleyt_rare',
-		numericId: 217,
-		name: 'Shelby',
-		expansion: 'advent_of_tcg',
-		palette: 'advent_of_tcg',
-		background: 'advent_of_tcg',
-		rarity: 'rare',
-		tokens: 1,
-		type: 'terraform',
-		health: 300,
-		primary: {
-			name: 'Good Witch',
-			cost: ['terraform'],
-			damage: 50,
-			power: null,
-		},
-		secondary: {
-			name: 'Parallel World',
-			cost: ['terraform', 'terraform'],
-			damage: 80,
-			power:
-				'After your attack, view the top card of your deck. You may choose to place it on the bottom of your deck.',
-		},
-	}
+const ShubbleYTRare: Hermit = {
+	...hermit,
+	id: 'shubbleyt_rare',
+	numericId: 217,
+	name: 'Shelby',
+	expansion: 'advent_of_tcg',
+	palette: 'advent_of_tcg',
+	background: 'advent_of_tcg',
+	rarity: 'rare',
+	tokens: 1,
+	type: 'terraform',
+	health: 300,
+	primary: {
+		name: 'Good Witch',
+		cost: ['terraform'],
+		damage: 50,
+		power: null,
+	},
+	secondary: {
+		name: 'Parallel World',
+		cost: ['terraform', 'terraform'],
+		damage: 80,
+		power:
+			'After your attack, view the top card of your deck. You may choose to place it on the bottom of your deck.',
+	},
+	onAttach(
+		game: GameModel,
+		component: CardComponent,
+		observer: ObserverComponent,
+	): void {
+		const {player} = component
 
-	public override onAttach(game: GameModel, instance: CardInstance, pos: CardPosModel): void {
-		const {player} = pos
+		observer.subscribeWithPriority(
+			game.hooks.afterAttack,
+			afterAttack.HERMIT_ATTACK_REQUESTS,
+			(attack) => {
+				if (!attack.isAttacker(component.entity)) return
+				if (attack.type !== 'secondary') return
+				const topCard = player.getDeck().sort(CardComponent.compareOrder).at(0)
+				if (!topCard) return
+				let currentTopCard: CardComponent = topCard
 
-		player.hooks.afterAttack.add(instance, (attack) => {
-			if (attack.id !== this.getInstanceKey(instance)) return
-			if (attack.type !== 'secondary') return
+				const newObserver = game.components.new(
+					ObserverComponent,
+					component.entity,
+				)
 
-			game.addModalRequest({
-				playerId: player.id,
-				data: {
-					modalId: 'selectCards',
-					payload: {
-						modalName: 'Shelby: Place your top card on bottom of deck?',
-						modalDescription: '',
-						cards: [player.pile[0].toLocalCardInstance()],
+				const modal: SelectCards.Request = {
+					player: player.entity,
+					modal: {
+						type: 'selectCards',
+						name: 'Shelby - Parallel World',
+						description: 'Place your top card on bottom of deck?',
+						cards: [currentTopCard.entity],
 						selectionSize: 0,
+						cancelable: false,
 						primaryButton: {
 							text: 'Place on Bottom',
 							variant: 'primary',
@@ -56,27 +74,44 @@ class ShubbleYTRareHermitCard extends Card {
 							variant: 'secondary',
 						},
 					},
-				},
-				onResult(modalResult) {
-					if (!modalResult) return 'SUCCESS'
-					if (!modalResult.result) return 'SUCCESS'
+					onResult(modalResult) {
+						newObserver.unsubscribeFromEverything()
+						if (!modalResult) return 'SUCCESS'
+						if (!modalResult.result) return 'SUCCESS'
 
-					const topCard = player.pile.shift()
-					if (!topCard) return 'SUCCESS'
-					player.pile.push(topCard)
+						currentTopCard.attach(
+							game.components.new(DeckSlotComponent, player.entity, {
+								position: 'back',
+							}),
+						)
 
-					return 'SUCCESS'
-				},
-				onTimeout() {},
-			})
-		})
-	}
+						return 'SUCCESS'
+					},
+					onTimeout() {
+						newObserver.unsubscribeFromEverything()
+					},
+				}
 
-	public override onDetach(game: GameModel, instance: CardInstance, pos: CardPosModel): void {
-		const {player} = pos
+				game.addModalRequest(modal)
 
-		player.hooks.afterAttack.remove(instance)
-	}
+				const updateModal = () => {
+					newObserver.unsubscribe(currentTopCard.hooks.onChangeSlot)
+					const topCard = player
+						.getDeck()
+						.sort(CardComponent.compareOrder)
+						.at(0)
+					if (!topCard) {
+						game.removeModalRequest(game.state.modalRequests.indexOf(modal))
+						return
+					}
+					currentTopCard = topCard
+					modal.modal.cards = [topCard.entity]
+					newObserver.subscribe(topCard.hooks.onChangeSlot, updateModal)
+				}
+				newObserver.subscribe(currentTopCard.hooks.onChangeSlot, updateModal)
+			},
+		)
+	},
 }
 
-export default ShubbleYTRareHermitCard
+export default ShubbleYTRare

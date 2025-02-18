@@ -2,26 +2,39 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import {Provider} from 'react-redux'
 import './index.scss'
+import {
+	BarElement,
+	CategoryScale,
+	Chart as ChartJS,
+	Legend,
+	LinearScale,
+	Title,
+	Tooltip,
+} from 'chart.js'
+import {CARDS_LIST} from 'common/cards'
+import {getRenderedCardImage} from 'common/cards/card'
 import App from './app'
-
-import socket from './socket'
 import store from './store'
-import * as Toast from '@radix-ui/react-toast'
-import toastCSS from 'components/toast/toast.module.scss'
 
+ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
+
+// Make the store available in the playwright test.
 // @ts-ignore
-global.store = store
-// @ts-ignore
-global.socket = socket
+global.getState = () => store.getState()
+
+let preloadCards = CARDS_LIST.flatMap((card) => {
+	return [
+		<link rel="preload" href={getRenderedCardImage(card, true)} as="image" />,
+		<link rel="preload" href={getRenderedCardImage(card, false)} as="image" />,
+	]
+})
 
 const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement)
 root.render(
 	<React.StrictMode>
+		{preloadCards}
 		<Provider store={store}>
-			<Toast.Provider swipeDirection="right">
-				<Toast.Viewport className={toastCSS.viewport} />
-				<App />
-			</Toast.Provider>
+			<App />
 		</Provider>
-	</React.StrictMode>
+	</React.StrictMode>,
 )

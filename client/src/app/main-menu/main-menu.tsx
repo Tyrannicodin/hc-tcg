@@ -1,40 +1,56 @@
-import {useDispatch, useSelector} from 'react-redux'
-import {joinQueue, createPrivateGame, joinPrivateGame} from 'logic/matchmaking/matchmaking-actions'
-import {logout} from 'logic/session/session-actions'
-import {getSession, getUpdates} from 'logic/session/session-selectors'
-import css from './main-menu.module.scss'
-import TcgLogo from 'components/tcg-logo'
+import {getCardTypeIcon} from 'common/cards/card'
+import {getIconPath} from 'common/utils/state-gen'
 import Beef from 'components/beef'
 import Button from 'components/button'
 import {VersionLinks} from 'components/link-container'
-import {useState} from 'react'
+import TcgLogo from 'components/tcg-logo'
 import UpdatesModal from 'components/updates'
+import debugOptions from 'debug'
+import {getLocalDatabaseInfo} from 'logic/game/database/database-selectors'
+import {getSession, getUpdates} from 'logic/session/session-selectors'
+import {useState} from 'react'
+import {useSelector} from 'react-redux'
+import css from './main-menu.module.scss'
 
 type Props = {
 	setMenuSection: (section: string) => void
 }
+
 function MainMenu({setMenuSection}: Props) {
-	const dispatch = useDispatch()
-	const {playerName, playerDeck} = useSelector(getSession)
-	const handleJoinQueue = () => dispatch(joinQueue())
-	const handleCreatePrivateGame = () => dispatch(createPrivateGame())
-	const handleJoinPrivateGame = () => dispatch(joinPrivateGame())
-	const handleLogOut = () => dispatch(logout())
+	const {
+		playerName,
+		playerDeck: playerDeckCode,
+		newPlayer,
+	} = useSelector(getSession)
+	const databaseInfo = useSelector(getLocalDatabaseInfo)
+	const playerDeck = databaseInfo?.decks.find(
+		(deck) => deck.code === playerDeckCode,
+	)
+
+	const handleGame = () => {
+		setMenuSection('play-select')
+	}
+
 	const handleDeck = () => setMenuSection('deck')
+	const handleMore = () => setMenuSection('more')
 	const handleSettings = () => setMenuSection('settings')
+	const handleAchievements = () => setMenuSection('achievements')
 
 	const updates = useSelector(getUpdates)
 	const [updatesOpen, setUpdatesOpen] = useState<boolean>(true)
 	const latestUpdateView = localStorage.getItem('latestUpdateView')
 
-	const welcomeMessage = playerDeck.name === 'Starter Deck' ? 'Welcome' : 'Welcome Back'
+	const welcomeMessage = newPlayer ? 'Welcome' : 'Welcome Back'
+
+	let showUpdateModal =
+		(!latestUpdateView ||
+			(updates.length && updates[0].timestamp > parseInt(latestUpdateView))) &&
+		debugOptions.showUpdatesModal !== false
 
 	return (
 		<>
-			{!latestUpdateView ||
-			parseInt(updates['timestamps'] ? updates['timestamps'][0] : '0') >
-				parseInt(latestUpdateView) ? (
-				<UpdatesModal updatesOpen={updatesOpen} setUpdatesOpen={setUpdatesOpen} />
+			{showUpdateModal ? (
+				updatesOpen && <UpdatesModal onClose={() => setUpdatesOpen(false)} />
 			) : (
 				<></>
 			)}
@@ -43,10 +59,12 @@ function MainMenu({setMenuSection}: Props) {
 					<p id={css.infoName}>
 						{welcomeMessage}, {playerName}
 					</p>
-					<p id={css.infoDeck}>{'Active Deck - ' + playerDeck.name}</p>
+					<p id={css.infoDeck}>
+						{'Active Deck - ' + `${playerDeck ? playerDeck.name : 'None'}`}
+					</p>
 					<img
 						id={css.infoIcon}
-						src={`/images/types/type-${playerDeck.icon}.png`}
+						src={playerDeck ? getIconPath(playerDeck) : getCardTypeIcon('any')}
 						alt="deck-icon"
 					/>
 				</div>
@@ -55,23 +73,45 @@ function MainMenu({setMenuSection}: Props) {
 						<TcgLogo />
 					</div>
 					<nav>
-						<Button variant="stone" id={css.public} onClick={handleJoinQueue}>
-							Public Game
+						<Button
+							variant="primary"
+							id={css.public}
+							onClick={handleGame}
+							className={css.mainMenuButton}
+						>
+							Play
 						</Button>
-						<Button variant="stone" id={css.privateCreate} onClick={handleCreatePrivateGame}>
-							Create Private Game
+						<Button
+							variant="default"
+							id={css.deck}
+							onClick={handleDeck}
+							className={css.mainMenuButton}
+						>
+							Deck Editor
 						</Button>
-						<Button variant="stone" id={css.privateJoin} onClick={handleJoinPrivateGame}>
-							Join Private Game
+						<Button
+							variant="default"
+							id={css.achievements}
+							onClick={handleAchievements}
+							className={css.mainMenuButton}
+						>
+							Achievements
 						</Button>
-						<Button variant="stone" id={css.deck} onClick={handleDeck}>
-							Customize Deck
+						<Button
+							variant="default"
+							id={css.settings}
+							onClick={handleSettings}
+							className={css.mainMenuButton}
+						>
+							Settings
 						</Button>
-						<Button variant="stone" id={css.settings} onClick={handleSettings}>
+						<Button
+							variant="default"
+							id={css.more}
+							onClick={handleMore}
+							className={css.mainMenuButton}
+						>
 							More
-						</Button>
-						<Button variant="stone" id={css.logout} onClick={handleLogOut}>
-							Log Out
 						</Button>
 					</nav>
 					<Beef />

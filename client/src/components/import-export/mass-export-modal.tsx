@@ -1,14 +1,8 @@
-import * as AlertDialog from '@radix-ui/react-dialog'
-import {PlayerDeckT} from 'common/types/deck'
 import Button from 'components/button'
-import Dropdown from 'components/dropdown'
-import ModalCSS from 'components/alert-modal/alert-modal.module.scss'
-import DropdownCSS from '../../app/deck/deck.module.scss'
+import {Modal} from 'components/modal'
+import {getLocalDatabaseInfo} from 'logic/game/database/database-selectors'
+import {useSelector} from 'react-redux'
 import css from './import-export.module.scss'
-import {useState} from 'react'
-import {EnergyT} from 'common/types/cards'
-import {getDeckFromHash, getHashFromDeck} from './import-export-utils'
-import {getSavedDecks} from 'logic/saved-decks/saved-decks'
 
 type Props = {
 	setOpen: boolean
@@ -16,13 +10,11 @@ type Props = {
 }
 
 export function MassExportModal({setOpen, onClose}: Props) {
+	const databaseInfo = useSelector(getLocalDatabaseInfo)
+
 	const getExportDecks = () => {
-		const decks: string[] = []
-		getSavedDecks().forEach((deck) => {
-			const deckJson = JSON.parse(deck)
-			if (deckJson) {
-				decks.push(`${deckJson.name}:${deckJson.icon}:${getHashFromDeck(deckJson.cards)}\n`)
-			}
+		const decks = databaseInfo.decks.map((deck) => {
+			return deck.code + '\n'
 		})
 		const deckFile = new Blob(decks, {type: 'text/plain'})
 
@@ -36,29 +28,17 @@ export function MassExportModal({setOpen, onClose}: Props) {
 	}
 
 	return (
-		<AlertDialog.Root open={setOpen} onOpenChange={(e) => !e && onClose()}>
-			<AlertDialog.Portal container={document.getElementById('modal')}>
-				<AlertDialog.Overlay className={ModalCSS.AlertDialogOverlay} />
-				<AlertDialog.Content className={ModalCSS.AlertDialogContent}>
-					<AlertDialog.Title className={ModalCSS.AlertDialogTitle}>
-						Mass Export
-						<AlertDialog.Close asChild>
-							<button className={ModalCSS.xClose}>
-								<img src="/images/CloseX.svg" alt="close" />
-							</button>
-						</AlertDialog.Close>
-					</AlertDialog.Title>
-					<AlertDialog.Description asChild className={ModalCSS.AlertDialogDescription}>
-						<div>
-							{/* EXPORT SECTION */}
-							<div className={css.importControls}>
-								<p className={css.instructions}>Press the export button to export all decks</p>
-								<Button onClick={getExportDecks}>Export decks</Button>
-							</div>
-						</div>
-					</AlertDialog.Description>
-				</AlertDialog.Content>
-			</AlertDialog.Portal>
-		</AlertDialog.Root>
+		<Modal title="Mass Export" setOpen={setOpen} onClose={onClose}>
+			<Modal.Description>
+				<div className={css.importControls}>
+					<p className={css.instructions}>
+						Press the export button to export all decks.
+					</p>
+				</div>
+			</Modal.Description>
+			<Modal.Options fillSpace>
+				<Button onClick={getExportDecks}>Export decks</Button>
+			</Modal.Options>
+		</Modal>
 	)
 }

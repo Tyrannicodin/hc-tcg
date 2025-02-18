@@ -1,30 +1,35 @@
-import {useDispatch, useSelector} from 'react-redux'
-import {getOpenedModal} from 'logic/game/game-selectors'
-import css from './toolbar.module.scss'
-import {setSetting} from 'logic/local-settings/local-settings-actions'
 import {getSettings} from 'logic/local-settings/local-settings-selectors'
+import {localMessages, useMessageDispatch} from 'logic/messages'
+import {useSelector} from 'react-redux'
+import css from './toolbar.module.scss'
 
 function TooltipsItem() {
-	const dispatch = useDispatch()
+	const dispatch = useMessageDispatch()
 	const settings = useSelector(getSettings)
 
 	const handleTooltips = () => {
-		dispatch(
-			setSetting('showAdvancedTooltips', settings.showAdvancedTooltips === 'on' ? 'off' : 'on')
-		)
+		dispatch({
+			type: localMessages.SETTINGS_SET,
+			setting: {
+				key: 'showAdvancedTooltips',
+				value: !settings.showAdvancedTooltips,
+			},
+		})
 	}
 
 	return (
 		<button
 			className={css.item}
 			title={
-				settings.showAdvancedTooltips === 'on' ? 'Hide detailed tooltips' : 'Show detailed tooltips'
+				settings.showAdvancedTooltips
+					? 'Hide detailed tooltips (T)'
+					: 'Show detailed tooltips (T)'
 			}
 			onClick={handleTooltips}
 		>
 			<img
 				src={
-					settings.showAdvancedTooltips === 'on'
+					settings.showAdvancedTooltips
 						? '/images/toolbar/tooltips.png'
 						: '/images/toolbar/tooltips-off.png'
 				}

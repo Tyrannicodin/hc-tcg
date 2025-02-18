@@ -1,40 +1,38 @@
-import {CardPosModel} from '../../../models/card-pos-model'
+import {
+	CardComponent,
+	DeckSlotComponent,
+	ObserverComponent,
+} from '../../../components'
 import {GameModel} from '../../../models/game-model'
-import {CardInstance} from '../../../types/game-state'
-import Card, {SingleUse, singleUse} from '../../base/card'
+import {singleUse} from '../../defaults'
+import {SingleUse} from '../../types'
+import Feather from './feather'
 
-class DropperSingleUseCard extends Card {
-	props: SingleUse = {
-		...singleUse,
-		id: 'dropper',
-		numericId: 222,
-		name: 'Dropper',
-		expansion: 'advent_of_tcg',
-		rarity: 'rare',
-		tokens: 0,
-		description: "Shuffle 2 fletching tables into your opponent's deck",
-		showConfirmationModal: true,
-	}
+const Dropper: SingleUse = {
+	...singleUse,
+	id: 'dropper',
+	numericId: 222,
+	name: 'Dropper',
+	expansion: 'advent_of_tcg',
+	rarity: 'common',
+	tokens: 0,
+	description: "Place a feather on the top of your opponent's deck",
+	showConfirmationModal: true,
+	log: (values) => values.defaultLog,
+	onAttach(
+		game: GameModel,
+		component: CardComponent,
+		observer: ObserverComponent,
+	): void {
+		const {player, opponentPlayer} = component
 
-	override onAttach(game: GameModel, instance: CardInstance, pos: CardPosModel): void {
-		const {player, opponentPlayer} = pos
-
-		player.hooks.onApply.add(instance, () => {
-			for (let i = 0; i < 2; i++) {
-				opponentPlayer.pile.splice(
-					Math.round(Math.random() * opponentPlayer.pile.length),
-					0,
-					CardInstance.fromCardId('fletching_table')
-				)
-			}
+		observer.subscribe(player.hooks.onApply, () => {
+			let slot = game.components.new(DeckSlotComponent, opponentPlayer.entity, {
+				position: 'front',
+			})
+			game.components.new(CardComponent, Feather, slot.entity)
 		})
-	}
-
-	public override onDetach(game: GameModel, instance: CardInstance, pos: CardPosModel): void {
-		const {player} = pos
-
-		player.hooks.onApply.remove(instance)
-	}
+	},
 }
 
-export default DropperSingleUseCard
+export default Dropper

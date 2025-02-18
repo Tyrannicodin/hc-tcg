@@ -1,89 +1,86 @@
-import {AttackModel} from '../../../models/attack-model'
-import {CardPosModel} from '../../../models/card-pos-model'
+import {
+	CardComponent,
+	ObserverComponent,
+	SlotComponent,
+	StatusEffectComponent,
+} from '../../../components'
+import query from '../../../components/query'
 import {GameModel} from '../../../models/game-model'
-import {slot} from '../../../slot'
-import {CardInstance} from '../../../types/game-state'
-import {applyStatusEffect, removeStatusEffect} from '../../../utils/board'
-import Card, {Hermit, hermit} from '../../base/card'
+import MelodyEffect from '../../../status-effects/melody'
+import {afterAttack} from '../../../types/priorities'
+import {hermit} from '../../defaults'
+import {Hermit} from '../../types'
 
-class OrionSoundRareHermitCard extends Card {
-	props: Hermit = {
-		...hermit,
-		id: 'orionsound_rare',
-		numericId: 213,
-		name: 'Oli',
-		expansion: 'advent_of_tcg',
-		palette: 'advent_of_tcg',
-		background: 'advent_of_tcg',
-		rarity: 'rare',
-		tokens: 1,
-		type: 'speedrunner',
-		health: 280,
-		primary: {
-			name: 'Melody',
-			cost: ['speedrunner'],
-			damage: 60,
-			power:
-				'Select an Active or AFK Hermit. This Hermit is healed by 10hp every turn until Oli is knocked out.',
-		},
-		secondary: {
-			name: 'Concert',
-			cost: ['speedrunner', 'speedrunner'],
-			damage: 80,
-			power: null,
-		},
-	}
+const OrionSoundRare: Hermit = {
+	...hermit,
+	id: 'orionsound_rare',
+	numericId: 213,
+	name: 'Oli',
+	expansion: 'advent_of_tcg',
+	palette: 'advent_of_tcg',
+	background: 'advent_of_tcg',
+	rarity: 'rare',
+	tokens: 1,
+	type: 'speedrunner',
+	health: 280,
+	primary: {
+		name: 'Melody',
+		cost: ['speedrunner'],
+		damage: 60,
+		power:
+			'Select an Active or AFK Hermit. Selected Hermit is healed by 10hp every turn until this Hermit is knocked out.',
+	},
+	secondary: {
+		name: 'Concert',
+		cost: ['speedrunner', 'speedrunner'],
+		damage: 80,
+		power: null,
+	},
+	onAttach(
+		game: GameModel,
+		component: CardComponent,
+		observer: ObserverComponent,
+	) {
+		const {player} = component
 
-	public override onAttach(game: GameModel, instance: CardInstance, pos: CardPosModel): void {
-		const {player, opponentPlayer} = pos
+		observer.subscribeWithPriority(
+			game.hooks.afterAttack,
+			afterAttack.HERMIT_ATTACK_REQUESTS,
+			(attack) => {
+				if (!attack.isAttacker(component.entity) || attack.type !== 'primary')
+					return
 
-		let cardsWithStatusEffects: Array<string> = []
-
-		player.hooks.onAttack.add(instance, (attack) => {
-			if (attack.id !== this.getInstanceKey(instance) || attack.type !== 'primary') return
-
-			game.addPickRequest({
-				playerId: player.id,
-				id: instance.instance,
-				message: 'Choose an Active or AFK Hermit to heal.',
-				canPick: slot.every(slot.not(slot.empty), slot.hermitSlot),
-				onResult(pickedSlot) {
-					const rowIndex = pickedSlot.rowIndex
-					if (!pickedSlot.card || rowIndex === null) return
-
-					applyStatusEffect(game, 'melody', pickedSlot.card)
-					cardsWithStatusEffects.push(pickedSlot.card.instance)
-				},
-			})
-		})
-
-		const afterAttack = (attack: AttackModel) => {
-			const attackTarget = attack.getTarget()
-			if (!attackTarget || attackTarget.row.health > 0) return
-			if (attackTarget.player !== pos.player || attackTarget.rowIndex !== pos.rowIndex) return
-
-			const statusEffectsToRemove = game.state.statusEffects.filter((ail) => {
-				return (
-					cardsWithStatusEffects.includes(ail.targetInstance.instance) && ail.props.id == 'melody'
+				const pickCondition = query.every(
+					query.slot.hermit,
+					query.not(query.slot.empty),
 				)
-			})
-			statusEffectsToRemove.forEach((ail) => {
-				removeStatusEffect(game, pos, ail)
-			})
-		}
 
-		player.hooks.afterAttack.add(instance, (attack) => afterAttack(attack))
-		opponentPlayer.hooks.afterAttack.add(instance, (attack) => afterAttack(attack))
-	}
+				if (
+					!game.components.exists(
+						SlotComponent,
+						pickCondition,
+						query.not(query.slot.hasStatusEffect(MelodyEffect)),
+					)
+				)
+					return
 
-	public override onDetach(game: GameModel, instance: CardInstance, pos: CardPosModel): void {
-		const {player, opponentPlayer} = pos
-		const instanceKey = this.getInstanceKey(instance)
+				game.addPickRequest({
+					player: player.entity,
+					id: component.entity,
+					message: 'Choose an Active or AFK Hermit to heal.',
+					canPick: pickCondition,
+					onResult(pickedSlot) {
+						const pickedCard = pickedSlot.getCard()
+						if (!pickedCard) return
 
-		player.hooks.onAttack.remove(instance)
-		player.hooks.afterAttack.remove(instance)
-		opponentPlayer.hooks.afterAttack.remove(instance)
-	}
+						game.components
+							.new(StatusEffectComponent, MelodyEffect, component.entity)
+							.apply(pickedCard.entity)
+					},
+				})
+			},
+		)
+	},
 }
 
-export default OrionSoundRareHermitCard
+export default OrionSoundRare

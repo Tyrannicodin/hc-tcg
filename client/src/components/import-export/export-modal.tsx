@@ -1,59 +1,42 @@
-import * as AlertDialog from '@radix-ui/react-alert-dialog'
-import {PlayerDeckT} from 'common/types/deck'
+import {Deck} from 'common/types/deck'
+import {Modal} from 'components/modal'
 import {CopyIcon} from 'components/svgs'
-import ModalCSS from 'components/alert-modal/alert-modal.module.scss'
+import {localMessages, useMessageDispatch} from 'logic/messages'
 import css from './import-export.module.scss'
-import {getHashFromDeck} from './import-export-utils'
 
 type Props = {
 	setOpen: boolean
-	onClose: (isOpen: boolean) => void
-	loadedDeck: PlayerDeckT
+	onClose: () => void
+	loadedDeck: Deck
 }
 
 export const ExportModal = ({setOpen, onClose, loadedDeck}: Props) => {
-	// EXPORT DECK FUNCTION
-	const handleExportDeck = () => {
-		return getHashFromDeck(loadedDeck.cards)
-	}
+	const dispatch = useMessageDispatch()
 
-	//JSX
+	if (setOpen)
+		dispatch({
+			type: localMessages.EXPORT_DECK,
+			code: loadedDeck.code,
+		})
+
 	return (
-		<AlertDialog.Root open={setOpen} onOpenChange={(e) => onClose(e)}>
-			<AlertDialog.Portal container={document.getElementById('modal')}>
-				<AlertDialog.Overlay className={ModalCSS.AlertDialogOverlay} />
-				<AlertDialog.Content className={ModalCSS.AlertDialogContent}>
-					<AlertDialog.Title className={ModalCSS.AlertDialogTitle}>
-						Export Deck
-						<AlertDialog.Cancel asChild>
-							<button className={ModalCSS.xClose}>
-								<img src="/images/CloseX.svg" alt="close" />
-							</button>
-						</AlertDialog.Cancel>
-					</AlertDialog.Title>
-					<AlertDialog.Description asChild className={ModalCSS.AlertDialogDescription}>
-						<div>
-							{/* EXPORT SECTION */}
-							<div>
-								<p className={css.instructions}>
-									Export the "{loadedDeck.name}" deck to share with your friends!
-								</p>
-								<div className={css.exportControls}>
-									<input type="text" readOnly value={handleExportDeck()} />
-									<button
-										className={css.copy}
-										onClick={() => {
-											navigator.clipboard.writeText(handleExportDeck())
-										}}
-									>
-										{CopyIcon()}
-									</button>
-								</div>
-							</div>
-						</div>
-					</AlertDialog.Description>
-				</AlertDialog.Content>
-			</AlertDialog.Portal>
-		</AlertDialog.Root>
+		<Modal title="Export Deck" setOpen={setOpen} onClose={onClose}>
+			<Modal.Description>
+				<p className={css.instructions}>
+					Export the "{loadedDeck.name}" deck to share with your friends!
+				</p>
+				<div className={css.exportControls}>
+					<input type="text" readOnly value={loadedDeck.code} />
+					<button
+						className={css.copy}
+						onClick={() => {
+							navigator.clipboard.writeText(loadedDeck.code)
+						}}
+					>
+						{CopyIcon()}
+					</button>
+				</div>
+			</Modal.Description>
+		</Modal>
 	)
 }

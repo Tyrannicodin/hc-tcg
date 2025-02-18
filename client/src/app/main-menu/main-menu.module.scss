@@ -13,8 +13,8 @@
 	right: 1vh;
 	display: grid;
 	grid-template-areas:
-		'name icon'
-		'deck icon';
+		"name icon"
+		"deck icon";
 	font-size: 1.5vh;
 	background-color: hsla(0deg, 0%, 0%, 35%);
 	padding: 0.75vh 1vh 0.75vh 1.5vh;
@@ -44,6 +44,12 @@
 	}
 }
 
+.mainMenuButton {
+	height: 5vh;
+	font-size: 1.8vh;
+	padding: 3vh;
+}
+
 .logo {
 	margin-inline: auto;
 }
@@ -53,22 +59,65 @@
 	inset: 0;
 	display: grid;
 	place-content: flex-start center;
-	padding-top: 10vh;
+	padding-bottom: 3vh;
 	margin-inline: auto;
+	justify-items: center;
+	align-content: center;
+	gap: 7vh;
+}
+
+.privateGameContent {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 2vh;
+	margin-top: 5vh;
+	animation: fadeIn 250ms ease-in-out forwards;
+
+	p,
+	label {
+		color: white;
+		font-size: 2.5vh;
+		filter: drop-shadow(2px 2px 0 var(--text-dark));
+		user-select: none;
+	}
+
+	button {
+		font-size: 2vh;
+		width: 30vh;
+		height: 5vh;
+		line-height: 100%;
+		padding: 0 2vh;
+	}
 }
 
 nav {
-	margin-top: 5vh;
+	width: 90%;
 	display: grid;
-	gap: 1vh;
+	gap: 0.75vh;
 	grid-template-areas:
-		'public'
-		'private-create'
-		'private-join'
-		'deck'
-		'settings'
-		'logout';
+		"public"
+		"private-create"
+		"solo-game"
+		"deck"
+		"settings"
+		"logout";
 	animation: fadeIn 250ms ease-in-out forwards;
+}
+
+/* DESKTOP */
+@media (min-width: 80vh) {
+	nav {
+		display: grid;
+		gap: 0.75vh;
+		grid-template-columns: 1fr 1fr;
+		grid-template-areas:
+			"public public"
+			"deck deck"
+			"achievements achievements"
+			"settings more";
+	}
 }
 
 #public {
@@ -79,8 +128,8 @@ nav {
 	grid-area: private-create;
 }
 
-#privateJoin {
-	grid-area: private-join;
+#soloGame {
+	grid-area: solo-game;
 }
 
 #deck {
@@ -93,6 +142,46 @@ nav {
 
 #logout {
 	grid-area: logout;
+}
+
+#tutorial {
+	grid-area: tutorial;
+}
+
+#achievements {
+	grid-area: achievements;
+}
+
+#gameHistory {
+	grid-area: game-history;
+}
+
+#hof {
+	grid-area: hof;
+}
+
+.body {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	margin-top: 10vh;
+
+	form {
+		width: 25vh;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+	}
+
+	input {
+		width: 25vh;
+		text-align: center;
+		border-radius: 0.5vh;
+		border: 0.3vh solid var(--gray-900);
+		height: 5vh;
+		font-size: 2vh;
+	}
 }
 
 /* Settings Page */
@@ -128,8 +217,19 @@ nav {
 	margin-bottom: 2vh;
 }
 
+.settingsMultipleRows {
+	display: grid;
+	grid-template-rows: 1fr 1fr 1fr 1fr 1fr;
+	grid-template-columns: 1fr 1fr;
+	grid-auto-flow: column;
+	gap: 1vh;
+	width: 100%;
+	margin-bottom: 2vh;
+}
+
 .stats {
-	background: var(--gray-800);
+	text-shadow: 0.1vh 0.1vh 0.2vh black, -0.1vh -0.1vh 0.2vh black;
+	background: hsla(0deg, 0%, 0%, 55%);
 	border-radius: 0.5vh;
 	padding: 1vh 2vh;
 }
@@ -138,13 +238,22 @@ nav {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	padding: 1vh 0;
+	padding: 0.8vh 0;
 	color: var(--text-light);
 
 	> span {
 		font-size: 2vh;
 		user-select: text;
 	}
+}
+
+.hofButton {
+	width: 100%;
+}
+
+.setUuidSecretForm {
+	width: 100%;
+	height: 100%;
 }
 
 .customInput {
@@ -185,47 +294,14 @@ nav {
 	}
 }
 
-.minecraftNameArea {
-	background: var(--gray-800);
+.settingDescriptor {
+	background: hsla(0deg, 0%, 0%, 55%);
 	border-radius: 0.5vh;
 	display: flex;
-	flex-direction: column;
+	flex-direction: row;
 	align-items: center;
-
-	.upper {
-		display: flex;
-		justify-content: center;
-		align-items: center;
-		margin: 2vh 0;
-
-		> h3 {
-			font-size: 2.5vh;
-			color: var(--text-light);
-			margin-right: 2vh;
-			filter: drop-shadow(1px 1px 0 var(--text-dark));
-		}
-
-		.playerHead {
-			width: 8vh;
-			height: 8vh;
-			filter: drop-shadow(0 0 2px var(--text-light));
-		}
-	}
-
-	.playerHeadForm {
-		width: 100%;
-		display: flex;
-		padding: 2vh;
-
-		> * {
-			font-size: 2vh;
-			line-height: 100%;
-		}
-
-		.customInput {
-			width: 90%;
-		}
-	}
+	padding: 1vh;
+	color: var(--text-light);
 }
 
 .creditsContainer {
@@ -236,30 +312,80 @@ nav {
 	gap: 1vh;
 }
 
+.developerCreditsContainer {
+	display: flex;
+	flex-wrap: wrap;
+}
+
+.developerCreditsContainer > div {
+	margin: 0.5vh;
+}
+
 .resetModal {
 	display: flex;
 	flex-direction: row;
 	justify-content: center;
+	gap: 0.5vh;
+	margin: 0.5vh;
+}
+
+.resetModalDescription {
+	padding: 1vh;
 }
 
 .resetModalButton {
-	margin: 1vh;
-	min-width: 45%;
+	width: 50%;
 }
 
-/* DESKTOP */
-@media (min-width: 80vh) {
-	nav {
-		margin-top: 5vh;
-		display: grid;
-		gap: 2vh;
-		grid-template-columns: 1fr 1fr;
-		grid-template-areas:
-			'public public'
-			'private-create private-join'
-			'deck deck'
-			'logout settings';
+.dbInfo {
+	text-shadow: 0.1vh 0.1vh 0.2vh black, -0.1vh -0.1vh 0.2vh black;
+	background: hsla(0deg, 0%, 0%, 55%);
+	border-radius: 0.5vh;
+	padding: 1vh 2vh;
+	display: flex;
+	flex-direction: row;
+}
+
+.dbItem {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 1vh 0;
+	color: var(--text-light);
+	font-size: 2vh;
+	user-select: text;
+
+	&.left {
+		flex-grow: 1;
 	}
+
+	&.right {
+		text-align: right;
+		flex-grow: 1;
+		justify-content: end;
+	}
+}
+
+.copy {
+	display: grid;
+	place-content: center;
+	background: var(--gray-900);
+	color: white;
+	padding: 0.4rem;
+	height: 2rem;
+	min-width: 2rem;
+	border-radius: 6px;
+	cursor: pointer;
+}
+
+.warning {
+	color: rgb(215, 23, 23);
+	text-align: center;
+	padding: 0.5rem;
+}
+
+.input {
+	width: 50vh;
 }
 
 @keyframes fadeIn {
@@ -270,4 +396,14 @@ nav {
 	to {
 		opacity: 1;
 	}
+}
+
+.achievementsContainer {
+	overflow: auto;
+	display: grid;
+	grid-template-columns: 50% 50%;
+	border-radius: 0.5vh;
+	padding: 1vh 2vh;
+	gap: 1vh;
+	overflow-y: scroll;
 }

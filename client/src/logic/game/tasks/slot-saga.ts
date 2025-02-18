@@ -1,127 +1,161 @@
-import {select} from 'typed-redux-saga'
-import {put, takeLeading, call, take, putResolve} from 'redux-saga/effects'
-import {SagaIterator} from 'redux-saga'
-import {CardInstance} from 'common/types/game-state'
-import {
-	ChangeActiveHermitActionData,
-	PickCardActionData,
-	PlayCardActionData,
-	slotToPlayCardAction,
-} from 'common/types/action-data'
-import {CARDS} from 'common/cards'
-import {getPlayerId} from 'logic/session/session-selectors'
+import FrozenEffect from 'common/status-effects/frozen'
+import {LocalCardInstance} from 'common/types/server-requests'
+import {slotToPlayCardAction} from 'common/types/turn-action-data'
 import {
 	getAvailableActions,
-	getSelectedCard,
-	getPlayerState,
 	getCurrentPickMessage,
+	getGameState,
+	getPlayerState,
+	getSelectedCard,
 } from 'logic/game/game-selectors'
-import {setSelectedCard, setOpenedModal, removeEffect, slotPicked} from 'logic/game/game-actions'
 import {getSettings} from 'logic/local-settings/local-settings-selectors'
-import {LocalCardInstance} from 'common/types/server-requests'
+import {LocalMessage, LocalMessageTable, localMessages} from 'logic/messages'
+import {SagaIterator} from 'redux-saga'
+import {call, put, putResolve, take, takeLeading} from 'typed-redux-saga'
+import {select} from 'typed-redux-saga'
+import {localPutCardInSlot} from '../local-state'
 
-type SlotPickedAction = ReturnType<typeof slotPicked>
-
-function* pickForPickRequestSaga(action: SlotPickedAction): SagaIterator {
+function* pickForPickRequestSaga(
+	action: LocalMessageTable[typeof localMessages.GAME_SLOT_PICKED],
+) {
 	const currentPickRequest = yield* select(getCurrentPickMessage)
 	if (!currentPickRequest) return
 
-	const pickInfo = action.payload.pickInfo
-
-	const actionData: PickCardActionData = {
-		type: 'PICK_REQUEST',
-		payload: {
-			pickResult: pickInfo,
+	yield put<LocalMessage>({
+		type: localMessages.GAME_TURN_ACTION,
+		action: {
+			type: 'PICK_REQUEST',
+			entity: action.slotInfo.slotEntity,
 		},
-	}
-
-	yield put(actionData)
+	})
 }
 
 function* pickWithSelectedSaga(
-	action: SlotPickedAction,
-	selectedCard: LocalCardInstance
+	action: LocalMessageTable[typeof localMessages.GAME_SLOT_PICKED],
+	selectedCard: LocalCardInstance,
 ): SagaIterator {
-	const pickInfo = action.payload.pickInfo
+	const pickInfo = action.slotInfo
 
-	yield putResolve(setSelectedCard(null))
+	yield* putResolve<LocalMessage>({
+		type: localMessages.GAME_CARD_SELECTED_SET,
+		card: null,
+	})
 
 	// If the hand is clicked don't send data
-	if (pickInfo.type !== 'hand') {
+	if (pickInfo.slotType !== 'hand') {
 		const actionType = slotToPlayCardAction[selectedCard.props.category]
 		if (!actionType) return
 
-		const actionData: PlayCardActionData = {
-			type: actionType,
-			payload: {pickInfo, card: selectedCard},
+		yield* localPutCardInSlot(action, selectedCard)
+
+		if (pickInfo.card === null) {
+			yield* put<LocalMessage>({
+				type: localMessages.GAME_TURN_ACTION,
+				action: {
+					type: actionType,
+					slot: pickInfo.slotEntity,
+					card: selectedCard,
+				},
+			})
 		}
 
-		yield put(actionData)
+		yield* put<LocalMessage>({
+			type: localMessages.GAME_CARD_SELECTED_SET,
+			card: null,
+		})
 	}
 }
 
-function* pickWithoutSelectedSaga(action: SlotPickedAction): SagaIterator {
-	const {playerId, rowIndex, type} = action.payload.pickInfo
+function* pickWithoutSelectedSaga(
+	action: LocalMessageTable[typeof localMessages.GAME_SLOT_PICKED],
+): SagaIterator {
+	const {slotType} = action.slotInfo
 
-	if (type !== 'hermit') return
+	if (slotType !== 'hermit') return
 
-	const currentPlayerId = yield* select(getPlayerId)
 	const playerState = yield* select(getPlayerState)
 	const settings = yield* select(getSettings)
+	const localGameState = yield* select(getGameState)
 
-	if (!playerState || rowIndex === null) return
-	const row = playerState.board.rows[rowIndex]
-	if (!row.hermitCard) return
+	let hermitRow = playerState?.board.rows.find(
+		(row) => row.hermit.slot == action.slotInfo.slotEntity,
+	)
+	if (!hermitRow) return
 
-	if (playerId !== currentPlayerId) return
+	if (playerState?.board.activeRow === hermitRow.entity) {
+		yield* put<LocalMessage>({
+			type: localMessages.GAME_MODAL_OPENED_SET,
+			id: 'attack',
+		})
+	} else if (
+		!localGameState?.statusEffects.find(
+			(effect) =>
+				effect.target.type === 'card' &&
+				effect.target.card === action.slotInfo.card?.entity &&
+				effect.props.id === FrozenEffect.id,
+		)
+	) {
+		if (settings.confirmationDialogsEnabled) {
+			yield* put<LocalMessage>({
+				type: localMessages.GAME_MODAL_OPENED_SET,
+				id: 'change-hermit-modal',
+				info: action.slotInfo,
+			})
+			const result = yield* take<
+				LocalMessageTable[typeof localMessages.GAME_ACTIONS_HERMIT_CHANGE_CONFIRM]
+			>(localMessages.GAME_ACTIONS_HERMIT_CHANGE_CONFIRM)
 
-	if (playerState.board.activeRow === rowIndex) {
-		yield put(setOpenedModal('attack'))
-	} else {
-		if (settings.confirmationDialogs !== 'off') {
-			yield put(setOpenedModal('change-hermit-modal', action.payload.pickInfo))
-			const result = yield take('CONFIRM_HERMIT_CHANGE')
-			if (!result.payload) return
+			if (!result.confirmed) return
 		}
 
-		const data: ChangeActiveHermitActionData = {
-			type: 'CHANGE_ACTIVE_HERMIT',
-			payload: {
-				pickInfo: action.payload.pickInfo,
+		yield* put<LocalMessage>({
+			type: localMessages.GAME_TURN_ACTION,
+			action: {
+				type: 'CHANGE_ACTIVE_HERMIT',
+				entity: action.slotInfo.slotEntity,
 			},
-		}
-		yield put(data)
+		})
 	}
 }
 
-function* slotPickedSaga(action: SlotPickedAction): SagaIterator {
+function* slotPickedSaga(
+	action: LocalMessageTable[typeof localMessages.GAME_SLOT_PICKED],
+): SagaIterator {
 	const availableActions = yield* select(getAvailableActions)
 	const selectedCard = yield* select(getSelectedCard)
 	if (availableActions.includes('WAIT_FOR_TURN')) return
 
-	if (action.payload.pickInfo.type === 'single_use') {
+	if (action.slotInfo.slotType === 'single_use') {
 		const playerState = yield* select(getPlayerState)
-		if (playerState?.board.singleUseCard && !playerState?.board.singleUseCardUsed) {
-			yield put(removeEffect())
+		if (
+			playerState?.board.singleUse.card &&
+			!playerState?.board.singleUseCardUsed
+		) {
+			yield* put<LocalMessage>({
+				type: localMessages.GAME_TURN_ACTION,
+				action: {
+					type: 'REMOVE_EFFECT',
+				},
+			})
 			return
 		}
 	}
 
 	if (availableActions.includes('PICK_REQUEST')) {
 		// Run a seperate saga for the pick request
-		yield call(pickForPickRequestSaga, action)
+		yield* call(pickForPickRequestSaga, action)
 		return
 	}
 
 	if (selectedCard) {
-		yield call(pickWithSelectedSaga, action, selectedCard)
+		yield* call(pickWithSelectedSaga, action, selectedCard)
 	} else {
-		yield call(pickWithoutSelectedSaga, action)
+		yield* call(pickWithoutSelectedSaga, action)
 	}
 }
 
 function* slotSaga(): SagaIterator {
-	yield takeLeading('SLOT_PICKED', slotPickedSaga)
+	yield* takeLeading(localMessages.GAME_SLOT_PICKED, slotPickedSaga)
 }
 
 export default slotSaga

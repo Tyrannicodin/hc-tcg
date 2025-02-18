@@ -1,63 +1,57 @@
-import {CardPosModel} from '../../../models/card-pos-model'
+import {CardComponent, ObserverComponent} from '../../../components'
 import {GameModel} from '../../../models/game-model'
-import {CardInstance} from '../../../types/game-state'
-import {getActiveRowPos} from '../../../utils/board'
-import Card, {Hermit, hermit} from '../../base/card'
+import {beforeAttack} from '../../../types/priorities'
+import {hermit} from '../../defaults'
+import {Hermit} from '../../types'
 
-class SmallishbeansRareHermitCard extends Card {
-	props: Hermit = {
-		...hermit,
-		id: 'smallishbeans_rare',
-		numericId: 219,
-		name: 'Joel',
-		expansion: 'advent_of_tcg',
-		palette: 'advent_of_tcg',
-		background: 'advent_of_tcg',
-		rarity: 'rare',
-		tokens: 2,
-		type: 'pvp',
-		health: 280,
-		primary: {
-			name: '11ft',
-			cost: ['pvp', 'any'],
-			damage: 70,
-			power: null,
-		},
-		secondary: {
-			name: 'Lore',
-			cost: ['pvp', 'pvp', 'any'],
-			damage: 30,
-			power: 'Deal 20 extra damage for each item attached. Double items count twice.',
-		},
-	}
+const SmallishbeansAdventRare: Hermit = {
+	...hermit,
+	id: 'smallishbeansadvent_rare',
+	numericId: 219,
+	name: 'Stratos Joel',
+	expansion: 'advent_of_tcg',
+	palette: 'advent_of_tcg',
+	background: 'advent_of_tcg',
+	rarity: 'rare',
+	tokens: 2,
+	type: 'pvp',
+	health: 280,
+	primary: {
+		name: '11ft',
+		cost: ['pvp', 'any'],
+		damage: 70,
+		power: null,
+	},
+	secondary: {
+		name: 'Lore',
+		cost: ['pvp', 'pvp', 'any'],
+		damage: 30,
+		power:
+			'Deal 20 extra damage for each item attached. Double items count twice.',
+	},
+	onAttach(
+		game: GameModel,
+		component: CardComponent,
+		observer: ObserverComponent,
+	) {
+		observer.subscribeWithPriority(
+			game.hooks.beforeAttack,
+			beforeAttack.MODIFY_DAMAGE,
+			(attack) => {
+				if (!attack.isAttacker(component.entity) || attack.type !== 'secondary')
+					return
 
-	override onAttach(game: GameModel, instance: CardInstance, pos: CardPosModel) {
-		const {player, row} = pos
+				const activeRow = component.slot.inRow() ? component.slot.row : null
+				if (!activeRow) return
 
-		player.hooks.onAttack.add(instance, (attack) => {
-			const attackId = this.getInstanceKey(instance)
-			if (attack.id !== attackId || attack.type !== 'secondary') return
+				let total = activeRow.getItems().reduce((partialSum, item) => {
+					return partialSum + (item.isItem() ? item.props.energy.length : 1)
+				}, 0)
 
-			const activeRow = getActiveRowPos(player)
-			if (!activeRow) return
-
-			let partialSum = 0
-
-			activeRow.row.itemCards.forEach((item) => {
-				if (!item || !item.props.id.includes('item')) return
-				if (item.props.rarity === 'rare') partialSum += 1
-				partialSum += 1
-			})
-
-			attack.addDamage(this.props.id, partialSum * 20)
-		})
-	}
-
-	override onDetach(game: GameModel, instance: CardInstance, pos: CardPosModel) {
-		const {player} = pos
-		// Remove hooks
-		player.hooks.onAttack.remove(instance)
-	}
+				attack.addDamage(component.entity, total * 20)
+			},
+		)
+	},
 }
 
-export default SmallishbeansRareHermitCard
+export default SmallishbeansAdventRare

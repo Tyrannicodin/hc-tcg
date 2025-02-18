@@ -1,37 +1,38 @@
-import StatusEffect, {Counter, StatusEffectProps, systemStatusEffect} from './status-effect'
+import {
+	ObserverComponent,
+	PlayerComponent,
+	StatusEffectComponent,
+} from '../components'
 import {GameModel} from '../models/game-model'
-import {CardPosModel} from '../models/card-pos-model'
-import {removeStatusEffect} from '../utils/board'
-import {StatusEffectInstance} from '../types/game-state'
+import {onTurnEnd} from '../types/priorities'
+import {Counter, systemStatusEffect} from './status-effect'
 
-class UsedClockStatusEffect extends StatusEffect {
-	props: StatusEffectProps & Counter = {
-		...systemStatusEffect,
-		id: 'used-clock',
-		name: 'Turn Skipped',
-		description: 'Turns can not be skipped consecutively.',
-		counter: 1,
-		counterType: 'turns',
-	}
+const UsedClockEffect: Counter<PlayerComponent> = {
+	...systemStatusEffect,
+	id: 'used-clock',
+	icon: 'used-clock',
+	name: 'Clocked Out',
+	description: "Your opponent's turns cannot be skipped consecutively.",
+	counter: 1,
+	counterType: 'turns',
+	onApply(
+		_game: GameModel,
+		effect: StatusEffectComponent,
+		player: PlayerComponent,
+		observer: ObserverComponent,
+	) {
+		if (effect.counter === null) effect.counter = this.counter
 
-	override onApply(game: GameModel, instance: StatusEffectInstance, pos: CardPosModel) {
-		const {player} = pos
-
-		if (!instance.counter) instance.counter = this.props.counter
-
-		player.hooks.onTurnEnd.add(instance, () => {
-			if (!instance.counter) return
-			instance.counter--
-
-			if (instance.counter === 0) removeStatusEffect(game, pos, instance)
-		})
-	}
-
-	override onRemoval(game: GameModel, instance: StatusEffectInstance, pos: CardPosModel) {
-		const {player, opponentPlayer} = pos
-		opponentPlayer.hooks.beforeAttack.remove(instance)
-		player.hooks.onTurnStart.remove(instance)
-	}
+		observer.subscribeWithPriority(
+			player.hooks.onTurnEnd,
+			onTurnEnd.ON_STATUS_EFFECT_TIMEOUT,
+			() => {
+				if (effect.counter === null) return
+				if (effect.counter === 0) effect.remove()
+				effect.counter--
+			},
+		)
+	},
 }
 
-export default UsedClockStatusEffect
+export default UsedClockEffect

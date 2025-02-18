@@ -1,6 +1,7 @@
-import {CardInstance, PlayerState, RowState, RowStateWithHermit} from './game-state'
+import {GameModel} from '../models/game-model'
 
 export type CardRarityT = 'common' | 'rare' | 'ultra_rare'
+export type TokenCostT = -1 | 0 | 1 | 2 | 3 | 4 | 5 | 'wild'
 
 export type RankT = 'stone' | 'iron' | 'gold' | 'emerald' | 'diamond'
 
@@ -15,13 +16,16 @@ export type TypeT =
 	| 'prankster'
 	| 'miner'
 	| 'explorer'
+	| 'any'
 
-export type EnergyT = TypeT | 'any'
-
-export type CardCategoryT = 'item' | 'single_use' | 'attach' | 'hermit' | 'health'
-export type BoardSlotTypeT = 'item' | 'attach' | 'hermit' | 'health'
-export type SlotTypeT = BoardSlotTypeT | 'single_use' | 'hand'
-export type ExpansionT = 'default' | 'alter_egos' | 'alter_egos_ii' | 'advent_of_tcg' | 'dream'
+export type CardCategoryT = 'item' | 'single_use' | 'attach' | 'hermit'
+export type BoardSlotTypeT = 'item' | 'attach' | 'hermit'
+export type SlotTypeT =
+	| BoardSlotTypeT
+	| 'single_use'
+	| 'hand'
+	| 'deck'
+	| 'discardPile'
 
 export type DamageT = {
 	target?: number
@@ -31,26 +35,12 @@ export type DamageT = {
 
 export type HermitAttackInfo = {
 	name: string
-	cost: Array<EnergyT>
+	shortName?: string
+	cost: Array<TypeT>
 	damage: number
 	power: string | null
 	formattedPower?: Array<Node>
-}
-
-export type RowPos = {
-	player: PlayerState
-	rowIndex: number
-	row: RowStateWithHermit
-}
-
-export type SlotInfo = {
-	player: PlayerState
-	opponentPlayer: PlayerState
-	type: SlotTypeT
-	index: number | null
-	rowIndex: number | null
-	row: RowState | null
-	card: CardInstance | null
+	passive?: boolean
 }
 
 export type PlayCardLog = {
@@ -70,9 +60,9 @@ export type PlayCardLog = {
 		name: string
 		/**The id of this card */
 		id: string
-		/**The name of the Hermit Card on the row the card was placed.*/
+		/**The name of the Hermit Card on the row this card was placed.*/
 		hermitCard: string
-		/**The slot type the card was placed on.*/
+		/**The slot type this card was placed on.*/
 		slotType: string
 	}
 	/**Information about the pick for the card.*/
@@ -81,7 +71,7 @@ export type PlayCardLog = {
 		rowIndex: string
 		/**Name of the card in the slot that was picked.*/
 		name: string
-		/**The id of this card */
+		/**The id of the picked card */
 		id: string
 		/**The name of the Hermit Card on the row that was picked.*/
 		hermitCard: string
@@ -89,4 +79,6 @@ export type PlayCardLog = {
 		slotType: string
 	}
 	previousLog?: string
+	/* The game this log is on*/
+	game: GameModel
 }

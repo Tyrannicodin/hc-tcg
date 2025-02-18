@@ -1,17 +1,17 @@
-import AlertModal from 'components/alert-modal'
+import Button from 'components/button'
+import {Modal} from 'components/modal'
 import {toHTML} from 'discord-markdown'
 import {getUpdates} from 'logic/session/session-selectors'
-import {useRef, useEffect} from 'react'
+import {useEffect, useRef} from 'react'
 import {useSelector} from 'react-redux'
 import sanitize from 'sanitize-html'
 import css from './updates.module.scss'
 
 type UpdatesModalProps = {
-	updatesOpen: boolean
-	setUpdatesOpen: (a1: boolean) => void
+	onClose: () => void
 }
 
-export function UpdatesModal({updatesOpen, setUpdatesOpen}: UpdatesModalProps) {
+export function UpdatesModal({onClose}: UpdatesModalProps) {
 	const updates = useSelector(getUpdates)
 	const latestUpdateElement = useRef<HTMLLIElement>(null)
 	useEffect(() => {
@@ -21,41 +21,52 @@ export function UpdatesModal({updatesOpen, setUpdatesOpen}: UpdatesModalProps) {
 		})
 	})
 
+	localStorage.setItem(
+		'latestUpdateView',
+		(new Date().valueOf() / 1000).toFixed(),
+	)
+
 	return (
-		<AlertModal
-			setOpen={updatesOpen}
-			onClose={() => {
-				setUpdatesOpen(false)
-				localStorage.setItem('latestUpdateView', (new Date().valueOf() / 1000).toFixed())
-			}}
-			cancelText="Close"
-			title="Latest updates"
-			action={() => {}}
-			description={
+		<Modal setOpen title="Latest Updates" onClose={onClose} disableCloseButton>
+			<Modal.Description>
 				<ul className={css.updatesList}>
-					{updates['updates'] ? (
-						updates['updates'].map((text, i) => {
+					<li key={15} className={css.updateItem}>
+						For more updates, visit the HC-TCG discord.
+					</li>
+					{updates ? (
+						updates.map(({tag, description, link, timestamp}, i) => {
 							return (
 								<>
 									<li
 										className={css.updateItem}
 										key={i + 1}
-										dangerouslySetInnerHTML={{__html: sanitize(toHTML(text))}}
 										ref={i === 0 ? latestUpdateElement : undefined}
-									/>
+									>
+										<a href={link} target="_blank">
+											<h1 className={css.updateName}> Update {tag} </h1>
+										</a>
+										<span className={css.shortDate}>
+											{new Date(timestamp * 1000).toLocaleDateString()}
+										</span>
+										<div
+											dangerouslySetInnerHTML={{
+												__html: sanitize(toHTML(description)),
+											}}
+										/>
+									</li>
 									<hr key={-i} className={css.updateSeperator} />
 								</>
 							)
 						})
 					) : (
-						<li className={css.updateItem}>Failed to load updates</li>
+						<li className={css.updateItem}>Failed to load updates.</li>
 					)}
-					<li key={20} className={css.updateItem}>
-						For more updates, visit the HC-TCG discord.
-					</li>
 				</ul>
-			}
-		/>
+			</Modal.Description>
+			<Modal.Options fillSpace>
+				<Button onClick={onClose}>Close</Button>
+			</Modal.Options>
+		</Modal>
 	)
 }
 

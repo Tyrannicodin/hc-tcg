@@ -1,31 +1,26 @@
-FROM debian:bullseye
+FROM node:18.20-bookworm
 
-ARG NODE_VERSION=16.16.0
 ARG APP_VERSION
-ENV APP_VERSION=$APP_VERSION
-
-RUN apt-get update
-RUN apt-get install -y \
-  curl \
-  python-is-python3 \
-  pkg-config \
-  build-essential
-
-RUN curl https://get.volta.sh | bash
-ENV VOLTA_HOME /root/.volta
-ENV PATH /root/.volta/bin:$PATH
-RUN volta install node@${NODE_VERSION}
+ENV APP_VERSION $APP_VERSION
+ENV CI true
 
 #######################################################################
 
 RUN mkdir /app
 WORKDIR /app
 
+RUN apt-get install imagemagick
+
 COPY . .
 
-COPY common/config/debug-config.example.json common/config/debug-config.json
+COPY common/config/debug-config.example.js common/config/debug-config.js
 
-RUN npm ci && npm run build
+RUN npm ci
+
+RUN npx playwright install --with-deps firefox
+RUN npm run client:render-cards
+RUN npm run build
+
 # Remove the build-time dependencies to keep the image small and enable node optimizations.
 ENV NODE_ENV production
 RUN npm install

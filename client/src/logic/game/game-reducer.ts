@@ -1,6 +1,31 @@
-import {AnyAction} from 'redux'
-import {LocalGameRoot} from 'common/types/game-state'
-import {equalCard} from 'common/utils/cards'
+import {BattleLogModel} from 'common/models/battle-log-model'
+import {
+	GameOutcome,
+	LocalCurrentCoinFlip,
+	LocalGameState,
+	Message,
+} from 'common/types/game-state'
+import {LocalCardInstance} from 'common/types/server-requests'
+import {LocalMessage, localMessages} from 'logic/messages'
+import {ModalVariant} from './tasks/action-modals-saga'
+
+type LocalGameRoot = {
+	localGameState: LocalGameState | null
+	time: number
+
+	selectedCard: LocalCardInstance | null
+	openedModal: {
+		id: ModalVariant
+		info: null
+	} | null
+	endGameOverlay: {
+		outcome: GameOutcome
+	} | null
+	chat: Array<Message>
+	battleLog: BattleLogModel | null
+	currentCoinFlip: LocalCurrentCoinFlip | null
+	opponentConnected: boolean
+}
 
 const defaultState: LocalGameRoot = {
 	localGameState: null,
@@ -15,23 +40,37 @@ const defaultState: LocalGameRoot = {
 	opponentConnected: true,
 }
 
-const gameReducer = (state = defaultState, action: AnyAction): LocalGameRoot => {
+const gameReducer = (
+	state = defaultState,
+	action: LocalMessage,
+): LocalGameRoot => {
 	switch (action.type) {
-		case 'LOCAL_GAME_STATE':
+		case localMessages.GAME_LOCAL_STATE_SET:
+			// I really don't know if its a good idea to automatically close modals besides the forfeit modal, but I am too scared
+			// too stop all modals from automatically closing.
+			let nextOpenedModal =
+				state.openedModal !== null && state.openedModal.id === 'forfeit'
+					? state.openedModal
+					: null
 			const newGame: LocalGameRoot = {
 				...state,
-				localGameState: action.payload.localGameState,
-				time: action.payload.time,
-				openedModal: null,
+				localGameState: action.localGameState,
+				time: action.time,
+				openedModal: nextOpenedModal,
+				selectedCard:
+					action.localGameState.hand.find(
+						(card) => card.entity === state.selectedCard?.entity,
+					) || null,
 			}
 			if (
-				state.localGameState?.turn.currentPlayerId ===
-				action.payload.localGameState?.currentPlayerId
+				state.localGameState?.turn.currentPlayerEntity ===
+				action.localGameState?.turn.currentPlayerEntity
 			)
 				return newGame
 			return {...newGame}
-		case 'GAME_START':
-		case 'GAME_END':
+		case localMessages.GAME_START:
+		case localMessages.GAME_END:
+		case localMessages.GAME_SPECTATOR_LEAVE:
 			return {
 				...state,
 				localGameState: null,
@@ -45,36 +84,45 @@ const gameReducer = (state = defaultState, action: AnyAction): LocalGameRoot => 
 				opponentConnected: true,
 			}
 
-		case 'SET_SELECTED_CARD':
+		case localMessages.GAME_CARD_SELECTED_SET:
 			return {
 				...state,
-				selectedCard: action.payload,
+				selectedCard: action.card,
 			}
-		case 'SET_OPENED_MODAL':
+		case localMessages.GAME_MODAL_OPENED_SET:
 			return {
 				...state,
-				openedModal: action.payload,
+				openedModal: action.id ? {id: action.id, info: action.info} : null,
 			}
-		case 'SHOW_END_GAME_OVERLAY':
+		case localMessages.GAME_END_OVERLAY_SHOW:
 			return {
 				...state,
-				endGameOverlay: action.payload,
+				endGameOverlay: {
+					outcome: action.outcome,
+				},
 			}
-		case 'CHAT_UPDATE':
+		case localMessages.CHAT_UPDATE:
 			return {
 				...state,
-				chat: action.payload,
+				chat: action.messages,
 			}
-		case 'SET_OPPONENT_CONNECTION':
+		case localMessages.GAME_OPPONENT_CONNECTION_SET:
 			return {
 				...state,
-				opponentConnected: action.payload,
+				opponentConnected: action.connected,
 			}
-		case 'SET_COIN_FLIP':
+		case localMessages.GAME_COIN_FLIP_SET:
 			return {
 				...state,
-				currentCoinFlip: action.payload,
+				currentCoinFlip: action.coinFlip,
 			}
+		// Update the board for the current player. This is used to put cards on the board before the
+		// server sends the new state.
+		// This updates based on outside mutations because I am so confused by redux and I want to ship
+		// the release tomorrow.
+		case localMessages.GAME_UPDATE:
+			return state
+
 		default:
 			return state
 	}

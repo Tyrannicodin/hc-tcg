@@ -1,6 +1,6 @@
-import {useState, useRef, useMemo, useEffect, memo} from 'react'
-import css from './health-card-svg.module.scss'
 import classnames from 'classnames'
+import {memo, useEffect, useMemo, useRef, useState} from 'react'
+import css from './health-card-svg.module.scss'
 
 function useCountdownAnimation(value: number, duration = 500) {
 	const [displayValue, setDisplayValue] = useState(value)
@@ -38,21 +38,33 @@ function useCountdownAnimation(value: number, duration = 500) {
 	return Math.round(displayValue)
 }
 
-const HealthDisplayModule = memo(({health}: {health: number}) => {
-	const displayHealth = useCountdownAnimation(health)
+const HealthDisplayModule = memo(({health}: {health: number | null}) => {
+	const displayHealth = health !== null ? useCountdownAnimation(health) : '???'
 
 	return (
 		<svg
 			className={classnames(css.card, {
-				[css.healthy]: displayHealth >= 200,
-				[css.damaged]: displayHealth < 200 && displayHealth >= 100,
-				[css.dying]: displayHealth < 100,
+				[css.mystery]: displayHealth === '???',
+				[css.healthy]: displayHealth !== '???' && displayHealth >= 200,
+				[css.damaged]:
+					displayHealth !== '???' &&
+					displayHealth < 200 &&
+					displayHealth >= 100,
+				[css.dying]: displayHealth !== '???' && displayHealth < 100,
 			})}
 			width="100%"
 			height="100%"
 			viewBox="0 0 400 400"
 		>
-			<rect className={css.cardBackground} x="10" y="10" width="380" height="380" rx="15" ry="15" />
+			<rect
+				className={css.cardBackground}
+				x="10"
+				y="10"
+				width="380"
+				height="380"
+				rx="15"
+				ry="15"
+			/>
 			<g id="type">
 				<rect
 					className={css.typeBackground}
@@ -75,7 +87,13 @@ const HealthDisplayModule = memo(({health}: {health: number}) => {
 				</text>
 			</g>
 			<g>
-				<ellipse className={css.healthBackground} cx="200" cy="250" rx="205" ry="130" />
+				<ellipse
+					className={css.healthBackground}
+					cx="200"
+					cy="250"
+					rx="205"
+					ry="130"
+				/>
 				<text
 					x="200"
 					y="200"

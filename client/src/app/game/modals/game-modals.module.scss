@@ -1,49 +1,19 @@
-.description {
-	padding: 1rem;
-	display: flex;
-	flex-direction: column;
-	gap: 0.5rem;
-
-	hr {
-		margin: 0.25rem 0;
-	}
-
-	li {
-		list-style: square inside;
-	}
-}
-
-.options {
-	text-align: center;
-	padding: 0.5rem;
-	display: flex;
-	justify-content: center;
-	gap: 10px;
-	border-top: 2px solid var(--gray-400);
-	background: var(--gray-500);
-	flex-grow: 1;
-
-	> button {
-		flex-grow: 1;
-		max-width: 50%;
-	}
-}
-
 .cards {
 	display: flex;
-	flex-grow: 1;
 	align-items: center;
 	justify-content: center;
 	padding: 5px;
 	max-height: 400px;
-	overflow-y: auto;
+	overflow-y: scroll;
 	overflow-x: hidden;
+	width: 100%;
 }
 
 .cardsListContainer {
 	margin: auto;
+	width: 100%;
 	max-height: 100%;
-	overflow: auto;
+	overflow: hidden;
 }
 
 .card {
@@ -82,7 +52,7 @@
 	padding: 1rem;
 	gap: 1rem;
 	border: 1px solid var(--gray-300);
-	font-family: Minecraft;
+	font-family: Minecraft, Unifont;
 	text-align: left;
 	color: var(--text-light);
 	cursor: pointer;
@@ -106,11 +76,18 @@
 		border-bottom: 2px solid var(--gray-700);
 		background: var(--gray-100);
 
-		img {
-			flex: 0 0 auto;
+		.hermitImage {
+			display: absolute;
 			margin-top: 5px;
 			width: 85px;
 			height: auto;
+		}
+
+		.effectImage {
+			display: absolute;
+			margin-top: -2px;
+			width: $size;
+			height: $size;
 		}
 	}
 
@@ -121,20 +98,13 @@
 	.name {
 		font-weight: bold;
 		font-size: 1.2rem;
+		user-select: none;
 
 		.select {
 			font-size: 0.8rem;
 			font-weight: normal;
 			font-style: italic;
 			opacity: 0.9;
-		}
-
-		.damage {
-			color: hsl(0deg, 90%, 50%);
-		}
-
-		.specialMove {
-			color: hsl(220deg, 90%, 50%);
 		}
 	}
 
@@ -159,6 +129,13 @@
 		height: 32px;
 		width: 32px;
 	}
+}
+
+.singleUseIcon {
+	height: 1.8rem;
+	transform: translateY(0.45rem);
+	pointer-events: none;
+	margin-top: -0.6rem;
 }
 
 .hermitOptions {
@@ -189,4 +166,43 @@
 	display: flex;
 	flex-direction: column;
 	margin-left: 1rem;
+}
+
+.draggableCard {
+	width: 130px;
+	position: absolute;
+}
+
+.deckSpacer {
+	flex-grow: 1;
+}
+
+.retrievalBox {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	gap: 1rem;
+	width: 200px;
+	max-width: 50%;
+}
+
+.retrievalName {
+	text-align: center;
+}
+
+.retrievalArea {
+	background-color: var(--gray-600);
+	border: 4px var(--gray-900) dashed;
+	height: 140px;
+}
+
+.draggableCardsContainer {
+	display: flex;
+	flex-direction: row;
+	overflow: hidden;
+}
+
+.subContainer {
+	position: absolute;
+	transform: translateY(6px);
 }

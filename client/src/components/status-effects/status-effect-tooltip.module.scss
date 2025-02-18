@@ -1,12 +1,3 @@
-.statusEffectTooltip {
-	overflow: hidden;
-	background-color: rgba(10, 1, 15, 95%);
-	box-shadow: inset 0 0 5px 2px rgb(38, 13, 77);
-	color: rgb(161, 161, 161);
-	padding: 8px;
-	border-radius: 4px;
-}
-
 .topLine {
 	display: flex;
 	gap: 10px;
@@ -32,11 +23,30 @@
 
 .turnsRemaining {
 	margin-top: 4px;
-	font-family: Minecraft;
+	font-family: Minecraft, Unifont;
 	font-size: 18px;
 	line-height: 1.1;
 }
 
+.tooltip {
+	font-style: italic;
+
+	&.player {
+		color: lightblue;
+	}
+}
+
 .counter {
 	font-family: MinecraftBold;
+}
+
+@media (max-width: 720px) {
+	.topLine {
+		gap: 8px;
+		font-size: 16px;
+	}
+
+	.description {
+		font-size: 16px;
+	}
 }

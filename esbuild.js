@@ -2,7 +2,7 @@ import {build} from 'esbuild'
 import {copy} from 'esbuild-plugin-copy'
 import {getAppVersion} from './version.js'
 
-let ctx = await build({
+await build({
 	entryPoints: ['./server/src'],
 	tsconfig: './server/tsconfig.json',
 	platform: 'node',
@@ -10,6 +10,7 @@ let ctx = await build({
 	format: 'esm',
 	bundle: true,
 	outfile: 'server/dist/index.js',
+	sourcemap: true,
 	plugins: [
 		copy({
 			assets: [
@@ -21,6 +22,7 @@ let ctx = await build({
 	],
 	define: {
 		__APP_VERSION__: `'${getAppVersion()}'`,
+		__DEBUG_BUILD__: JSON.stringify(process.env.NODE_ENV !== 'production'),
 	},
 })
 

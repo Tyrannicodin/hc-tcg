@@ -1,79 +1,77 @@
-import {AnyAction} from 'redux'
+import {LocalMessage, localMessages} from 'logic/messages'
 import {MatchmakingStatus} from './matchmaking-types'
 
 type MatchmakingState = {
 	status: MatchmakingStatus
-	code: string | null
+	gameCode: string | null
+	spectatorCode: string | null
 	invalidCode: boolean
 }
 
 const defaultState: MatchmakingState = {
 	status: null,
-	code: null,
+	gameCode: null,
+	spectatorCode: null,
 	invalidCode: false,
 }
 
-const matchmakingReducer = (state = defaultState, action: AnyAction): MatchmakingState => {
+const matchmakingReducer = (
+	state = defaultState,
+	action: LocalMessage,
+): MatchmakingState => {
 	switch (action.type) {
-		case 'JOIN_QUEUE':
+		case localMessages.MATCHMAKING_QUEUE_JOIN:
 			return {
 				...state,
 				status: 'random_waiting',
 			}
-		case 'CREATE_PRIVATE_GAME':
+		case localMessages.MATCHMAKING_BOSS_GAME_CREATE:
 			return {
 				...state,
 				status: 'loading',
 			}
-		case 'JOIN_PRIVATE_GAME':
+		case localMessages.MATCHMAKING_PRIVATE_GAME_LOBBY:
 			return {
 				...state,
-				status: 'private_code_needed',
+				status: 'private_lobby',
 				invalidCode: false,
 			}
-		case 'WAITING_FOR_PLAYER':
+		case localMessages.MATCHMAKING_WAITING_FOR_PLAYER:
 			return {
 				...state,
 				status: 'waiting_for_player',
 			}
-		case 'CODE_RECEIVED':
+		case localMessages.MATCHMAKING_WAITING_FOR_PLAYER_AS_SPECTATOR:
 			return {
 				...state,
-				code: action.payload,
-				status: 'private_waiting',
+				status: 'waiting_for_player_as_spectator',
 			}
-		case 'INVALID_CODE':
+		case localMessages.MATCHMAKING_CODE_RECIEVED:
 			return {
 				...state,
-				status: 'private_code_needed',
-				invalidCode: true,
+				gameCode: action.gameCode,
+				spectatorCode: action.spectatorCode,
+				status: 'private_lobby',
 			}
-		case 'SET_MATCHMAKING_CODE':
+		case localMessages.MATCHMAKING_CODE_SET:
 			return {
 				...state,
-				code: action.payload,
 				status: 'loading',
+				invalidCode: false,
 			}
-		case 'DISCONNECT':
-		case 'GAME_STATE':
-		case 'LEAVE_MATCHMAKING':
+		case localMessages.DISCONNECT:
+		case localMessages.MATCHMAKING_LEAVE:
 			return {
 				...state,
-				code: null,
+				gameCode: null,
+				spectatorCode: null,
 				status: null,
 				invalidCode: false,
 			}
-		case 'CLEAR_MATCHMAKING':
+		case localMessages.GAME_START:
 			return {
 				...state,
-				code: null,
-				status: null,
-				invalidCode: false,
-			}
-		case 'GAME_START':
-			return {
-				...state,
-				status: 'starting',
+				status: 'in_game',
 			}
 		default:
 			return state

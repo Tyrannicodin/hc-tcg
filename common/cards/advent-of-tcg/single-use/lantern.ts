@@ -1,75 +1,78 @@
-import {CardPosModel} from '../../../models/card-pos-model'
+import {CardComponent, ObserverComponent} from '../../../components'
+import query from '../../../components/query'
 import {GameModel} from '../../../models/game-model'
-import {slot} from '../../../slot'
-import {CardInstance} from '../../../types/game-state'
-import Card, {SingleUse, singleUse} from '../../base/card'
+import {singleUse} from '../../defaults'
+import {SingleUse} from '../../types'
 
-class LanternSingleUseCard extends Card {
-	props: SingleUse = {
-		...singleUse,
-		id: 'lantern',
-		numericId: 225,
-		name: 'Lantern',
-		expansion: 'advent_of_tcg',
-		rarity: 'rare',
-		tokens: 3,
-		description:
-			'Look at the top 4 cards of your deck, and choose 2 to draw. Show these 2 cards to your opponent.',
-		showConfirmationModal: true,
-		attachCondition: slot.every(
-			singleUse.attachCondition,
-			(game, pos) => pos.player.pile.length >= 4
-		),
-	}
+const Lantern: SingleUse = {
+	...singleUse,
+	id: 'lantern',
+	numericId: 225,
+	name: 'Lantern',
+	expansion: 'advent_of_tcg',
+	rarity: 'rare',
+	tokens: 3,
+	description:
+		'Look at the top 4 cards of your deck, and choose 2 to draw. Show these 2 cards to your opponent.',
+	showConfirmationModal: true,
+	attachCondition: query.every(
+		singleUse.attachCondition,
+		(_game, pos) => pos.player.getDeck().length >= 4,
+	),
+	log: (values) => values.defaultLog,
+	onAttach(
+		game: GameModel,
+		component: CardComponent,
+		observer: ObserverComponent,
+	) {
+		const {player, opponentPlayer} = component
 
-	override onAttach(game: GameModel, instance: CardInstance, pos: CardPosModel) {
-		const {player, opponentPlayer} = pos
+		observer.subscribe(player.hooks.onApply, () => {
+			const topCards = player
+				.getDeck()
+				.sort(CardComponent.compareOrder)
+				.slice(0, 4)
 
-		player.hooks.onApply.add(instance, () => {
 			game.addModalRequest({
-				playerId: player.id,
-				data: {
-					modalId: 'selectCards',
-					payload: {
-						modalName: 'Lantern: Choose 2 cards to draw immediately.',
-						modalDescription: '',
-						cards: player.pile.slice(0, 4).map((card) => card.toLocalCardInstance()),
-						selectionSize: 2,
-						primaryButton: {
-							text: 'Confirm Selection',
-							variant: 'default',
-						},
+				player: player.entity,
+				modal: {
+					type: 'selectCards',
+					name: 'Lantern',
+					description: 'Choose 2 cards to draw immediately.',
+					cards: topCards.map((card) => card.entity),
+					selectionSize: 2,
+					primaryButton: {
+						text: 'Confirm Selection',
+						variant: 'default',
 					},
+					cancelable: false,
 				},
 				onResult(modalResult) {
 					if (!modalResult) return 'FAILURE_INVALID_DATA'
 					if (!modalResult.cards) return 'FAILURE_INVALID_DATA'
 					if (modalResult.cards.length !== 2) return 'FAILURE_INVALID_DATA'
 
-					const cards = modalResult.cards
+					const drawCards = modalResult.cards
 
-					player.pile = player.pile.filter((c) => {
-						if (cards.some((d) => c.instance === d.instance)) {
-							player.hand.push(c)
-							return false
+					topCards.forEach((card) => {
+						if (drawCards.some((c) => c.entity === card.entity)) {
+							card.draw()
 						}
-						return true
 					})
 
 					game.addModalRequest({
-						playerId: opponentPlayer.id,
-						data: {
-							modalId: 'selectCards',
-							payload: {
-								modalName: 'Lantern: Cards your opponent drew.',
-								modalDescription: '',
-								cards: modalResult.cards,
-								selectionSize: 0,
-								primaryButton: {
-									text: 'Close',
-									variant: 'default',
-								},
+						player: opponentPlayer.entity,
+						modal: {
+							type: 'selectCards',
+							name: 'Lantern',
+							description: 'Cards your opponent drew.',
+							cards: modalResult.cards.map((card) => card.entity),
+							selectionSize: 0,
+							primaryButton: {
+								text: 'Close',
+								variant: 'default',
 							},
+							cancelable: true,
 						},
 						onResult() {
 							return 'SUCCESS'
@@ -86,12 +89,7 @@ class LanternSingleUseCard extends Card {
 				},
 			})
 		})
-	}
-
-	override onDetach(game: GameModel, instance: CardInstance, pos: CardPosModel) {
-		const {player} = pos
-		player.hooks.onApply.remove(instance)
-	}
+	},
 }
 
-export default LanternSingleUseCard
+export default Lantern

@@ -1,76 +1,52 @@
-import {CARDS} from '../cards'
-import {LocalCardInstance, WithoutFunctions} from './server-requests'
+import {TypeT} from './cards'
+import {LocalCardInstance} from './server-requests'
 
-export type PlayerDeckT = {
+export type Tag = {
 	name: string
-	icon:
-		| 'any'
-		| 'balanced'
-		| 'builder'
-		| 'explorer'
-		| 'farm'
-		| 'miner'
-		| 'prankster'
-		| 'pvp'
-		| 'redstone'
-		| 'speedrunner'
-		| 'terraform'
-	cards: Array<LocalCardInstance>
+	color: string
+	key: string
 }
 
-export type SavedDeckT = {
+type DeckIconItem = {
+	iconType: 'item'
+	icon: TypeT
+}
+
+type DeckIconHermit = {
+	iconType: 'hermit'
+	icon: string
+}
+
+type DeckIconEffect = {
+	iconType: 'effect'
+	icon: string
+}
+
+export type Deck = {
 	name: string
-	icon:
-		| 'any'
-		| 'balanced'
-		| 'builder'
-		| 'explorer'
-		| 'farm'
-		| 'miner'
-		| 'prankster'
-		| 'pvp'
-		| 'redstone'
-		| 'speedrunner'
-		| 'terraform'
+	code: string
+	cards: Array<LocalCardInstance>
+	tags: Array<Tag>
+	public: boolean
+} & (DeckIconItem | DeckIconHermit | DeckIconEffect)
+
+export type ApiDeck = {
+	name: string | null
+	icon: string | null
+	iconType: string | null
+	code: string
+	cards: Array<string>
+	tags: Array<Tag>
+}
+
+// This type is used to ensure saving and loading compatibility with older versions of hc-tcg
+export type LegacyDeck = {
+	name: string
+	icon: TypeT
 	cards: Array<{
 		cardId: string
 		cardInstance: string
 	}>
-}
-
-export function deckToSavedDeck(deck: PlayerDeckT): SavedDeckT {
-	let name = deck.name
-	let icon = deck.icon
-
-	let cards = deck.cards.map((card) => {
-		console.log(card)
-		return {cardId: card.props.id, cardInstance: card.instance}
-	})
-
-	return {
-		name,
-		icon,
-		cards,
-	}
-}
-
-export function loadSavedDeck(deck: SavedDeckT | null): PlayerDeckT | null {
-	if (!deck) return null
-
-	let name = deck.name
-	let icon = deck.icon
-
-	let cards = deck.cards.map((card) => {
-		let cardInfo = CARDS[card.cardId]
-		return {
-			props: WithoutFunctions(cardInfo.props),
-			instance: card.cardInstance,
-		}
-	})
-
-	return {
-		name,
-		icon,
-		cards,
-	}
+	code?: string
+	tags: Array<string> | null
 }

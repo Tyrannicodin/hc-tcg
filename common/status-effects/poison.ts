@@ -1,77 +1,64 @@
-import StatusEffect, {StatusEffectProps, damageEffect} from './status-effect'
+import {
+	CardComponent,
+	ObserverComponent,
+	StatusEffectComponent,
+} from '../components'
 import {GameModel} from '../models/game-model'
-import {RowPos} from '../types/cards'
-import {CardPosModel} from '../models/card-pos-model'
-import {AttackModel} from '../models/attack-model'
-import {getActiveRowPos, removeStatusEffect} from '../utils/board'
-import {StatusEffectInstance} from '../types/game-state'
+import {afterAttack, onTurnEnd} from '../types/priorities'
 import {executeExtraAttacks} from '../utils/attacks'
-import {slot} from '../slot'
+import {StatusEffect, damageEffect} from './status-effect'
 
-class PoisonStatusEffect extends StatusEffect {
-	props: StatusEffectProps = {
-		...damageEffect,
-		id: 'poison',
-		name: 'Poison',
-		description:
-			"Poisoned Hermits take an additional 20hp damage at the end of their opponent's turn, until down to 10hp. Can not stack with burn.",
-		applyLog: (values) => `${values.target} was $ePoisoned$`,
-	}
+const PoisonEffect: StatusEffect<CardComponent> = {
+	...damageEffect,
+	id: 'poison',
+	icon: 'poison',
+	name: 'Poison',
+	description:
+		"Poisoned Hermits take an additional 20hp damage at the end of their opponent's turn, until down to 10hp. Can not stack with burn.",
+	applyLog: (values) => `${values.target} was $ePoisoned$`,
+	onApply(
+		game: GameModel,
+		effect: StatusEffectComponent,
+		target: CardComponent,
+		observer: ObserverComponent,
+	) {
+		const {opponentPlayer} = target
 
-	override onApply(game: GameModel, instance: StatusEffectInstance, pos: CardPosModel) {
-		const {player, opponentPlayer} = pos
+		observer.subscribeWithPriority(
+			opponentPlayer.hooks.onTurnEnd,
+			onTurnEnd.BEFORE_STATUS_EFFECT_TIMEOUT,
+			() => {
+				if (!target.slot.inRow()) return
+				const statusEffectAttack = game.newAttack({
+					attacker: effect.entity,
+					target: target.slot.row.entity,
+					player: opponentPlayer.entity,
+					type: 'status-effect',
+					log: (values) =>
+						`${values.target} took ${values.damage} damage from $bPoison$`,
+				})
 
-		opponentPlayer.hooks.onTurnEnd.add(instance, () => {
-			const targetPos = game.findSlot(slot.hasInstance(instance.targetInstance))
-			if (!targetPos || !targetPos.row || targetPos.rowIndex === null) return
-			if (!targetPos.row.hermitCard) return
+				let damage = 0
+				if (target.slot.row.health && target.slot.row.health >= 30) {
+					damage = 20
+				} else if (target.slot.row.health && target.slot.row.health >= 20) {
+					damage = 10
+				}
+				statusEffectAttack.addDamage(effect.entity, damage)
 
-			const activeRowPos = getActiveRowPos(opponentPlayer)
-			const sourceRow: RowPos | null = activeRowPos
-				? {
-						player: activeRowPos.player,
-						rowIndex: activeRowPos.rowIndex,
-						row: activeRowPos.row,
-				  }
-				: null
+				executeExtraAttacks(game, [statusEffectAttack])
+			},
+		)
 
-			const targetRow: RowPos = {
-				player: targetPos.player,
-				rowIndex: targetPos.rowIndex,
-				row: targetPos.row,
-			}
-
-			const statusEffectAttack = new AttackModel({
-				id: this.getInstanceKey(instance, 'statusEffectAttack'),
-				attacker: sourceRow,
-				target: targetRow,
-				type: 'status-effect',
-				log: (values) => `${values.target} took ${values.damage} damage from $bPoison$`,
-			})
-
-			if (targetPos.row.health >= 30) {
-				statusEffectAttack.addDamage(this.props.id, 20)
-			} else if (targetPos.row.health == 20) {
-				statusEffectAttack.addDamage(this.props.id, 10)
-			}
-
-			executeExtraAttacks(game, [statusEffectAttack], true)
-		})
-
-		player.hooks.afterDefence.add(instance, (attack) => {
-			const attackTarget = attack.getTarget()
-			if (!attackTarget) return
-			if (attackTarget.row.hermitCard.instance !== instance.targetInstance.instance) return
-			if (attackTarget.row.health > 0) return
-			removeStatusEffect(game, pos, instance)
-		})
-	}
-
-	override onRemoval(game: GameModel, instance: StatusEffectInstance, pos: CardPosModel) {
-		const {player, opponentPlayer} = pos
-		opponentPlayer.hooks.onTurnEnd.remove(instance)
-		player.hooks.afterDefence.remove(instance)
-	}
+		observer.subscribeWithPriority(
+			game.hooks.afterAttack,
+			afterAttack.UPDATE_POST_ATTACK_STATE,
+			(attack) => {
+				if (!attack.isTargeting(target) || attack.target?.health) return
+				effect.remove()
+			},
+		)
+	},
 }
 
-export default PoisonStatusEffect
+export default PoisonEffect

@@ -1,56 +1,78 @@
-import {useState, useEffect, useMemo} from 'react'
-import {useDispatch, useSelector} from 'react-redux'
-import {getSettings} from 'logic/local-settings/local-settings-selectors'
-import {getPlayerName, getToast} from 'logic/session/session-selectors'
-import {getSocketStatus} from 'logic/socket/socket-selectors'
-import {sectionChange} from 'logic/sound/sound-actions'
-import {useRouter} from './app-hooks'
-import Login from './login'
-import Game from './game'
-import MainMenu from './main-menu'
-import Deck from './deck'
-import MatchMaking from './match-making'
-import Toast from 'components/toast'
-import Settings from './main-menu/settings'
-import GameSettings from './main-menu/game-settings'
-import DataSettings from './main-menu/data-settings'
-import Credits from './main-menu/credits'
-import LostConnection from 'components/lost-connection'
 import Background from 'components/background'
+import LostConnection from 'components/lost-connection'
+import Toast from 'components/toast'
+import {ToastContainer} from 'components/toast/toast'
+import {CurrentTooltip} from 'components/tooltip/tooltip'
+import {getSettings} from 'logic/local-settings/local-settings-selectors'
+import {localMessages, useMessageDispatch} from 'logic/messages'
+import {
+	getPlayerName,
+	getSession,
+	getToast,
+	getTooltip,
+} from 'logic/session/session-selectors'
+import {getSocketStatus} from 'logic/socket/socket-selectors'
+import {useEffect, useMemo, useState} from 'react'
+import {useSelector} from 'react-redux'
+import {useRouter} from './app-hooks'
+import Deck from './deck'
+import Game from './game'
+import Login from './login'
+import MainMenu from './main-menu'
+import Achievements from './main-menu/achievements'
+import Cosmetics from './main-menu/cosmetics'
+import Credits from './main-menu/credits'
+import DataSettings from './main-menu/data-settings'
+import GameSettings from './main-menu/game-settings'
+import PlaySelect from './main-menu/play-select'
+import More from './main-menu/settings'
+import Statistics from './main-menu/statistics'
 
 function App() {
 	const section = useRouter()
-	const dispatch = useDispatch()
+	const dispatch = useMessageDispatch()
 	const playerName = useSelector(getPlayerName)
 	const socketStatus = useSelector(getSocketStatus)
+	const connected = useSelector(getSession).connected
 	const toastMessage = useSelector(getToast)
+	const tooltip = useSelector(getTooltip)
 	const settings = useSelector(getSettings)
-	const [menuSection, setMenuSection] = useState<string>('mainmenu')
+	const [menuSection, setMenuSection] = useState<string>('main-menu')
 	let enableToast = false
 
 	useEffect(() => {
-		dispatch(sectionChange(section))
+		dispatch({
+			type: localMessages.SOUND_SECTION_CHANGE,
+			section: section,
+		})
 	}, [section])
 
 	const router = () => {
 		if (section === 'game') {
 			return <Game />
-		} else if (section === 'matchmaking') {
-			return <MatchMaking />
-		} else if (playerName) {
+		} else if (connected && playerName) {
 			enableToast = true
 			switch (menuSection) {
 				case 'deck':
 					return <Deck setMenuSection={setMenuSection} />
+				case 'more':
+					return <More setMenuSection={setMenuSection} />
 				case 'settings':
-					return <Settings setMenuSection={setMenuSection} />
-				case 'game-settings':
 					return <GameSettings setMenuSection={setMenuSection} />
 				case 'data-settings':
 					return <DataSettings setMenuSection={setMenuSection} />
+				case 'statistics':
+					return <Statistics setMenuSection={setMenuSection} />
+				case 'achievements':
+					return <Achievements setMenuSection={setMenuSection} />
+				case 'cosmetics':
+					return <Cosmetics setMenuSection={setMenuSection} />
 				case 'credits':
 					return <Credits setMenuSection={setMenuSection} />
-				case 'mainmenu':
+				case 'play-select':
+					return <PlaySelect setMenuSection={setMenuSection} />
+
+				case 'main-menu':
 				default:
 					return <MainMenu setMenuSection={setMenuSection} />
 			}
@@ -59,7 +81,12 @@ function App() {
 	}
 
 	const background = useMemo(() => {
-		return <Background panorama={settings.panorama} disabled={!settings.panoramaEnabled} />
+		return (
+			<Background
+				panorama={settings.panorama}
+				disabled={!settings.panoramaEnabled}
+			/>
+		)
 	}, [settings.panoramaEnabled])
 
 	return (
@@ -67,13 +94,28 @@ function App() {
 			{background}
 			{router()}
 			{playerName && !socketStatus && <LostConnection />}
-			{enableToast && (
-				<Toast
-					title={toastMessage.title}
-					description={toastMessage.description}
-					image={toastMessage.image}
-					setOpen={toastMessage.open}
+			{tooltip && (
+				<CurrentTooltip
+					tooltip={tooltip.tooltip}
+					anchor={tooltip.anchor}
+					tooltipHeight={tooltip.tooltipHeight}
+					tooltipWidth={tooltip.tooltipWidth}
 				/>
+			)}
+			{enableToast && (
+				<ToastContainer>
+					{toastMessage.map((toast, i) => {
+						return (
+							<Toast
+								title={toast.toast.title}
+								description={toast.toast.description}
+								image={toast.toast.image}
+								id={toast.id}
+								key={i}
+							/>
+						)
+					})}
+				</ToastContainer>
 			)}
 		</main>
 	)

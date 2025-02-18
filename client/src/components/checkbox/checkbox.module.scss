@@ -1,0 +1,51 @@
+.container {
+	position: relative;
+	cursor: pointer;
+	user-select: none;
+	width: 18px;
+	height: 18px;
+}
+
+.originalCheckbox {
+	position: absolute;
+	opacity: 0%;
+	cursor: pointer;
+	height: 0px;
+	width: 0px;
+}
+
+.checkbox {
+	position: absolute;
+	background-color: var(--gray-300);
+	border: 2px black solid;
+	width: 25px;
+	height: 25px;
+	right: 0px;
+	cursor: pointer;
+
+	&:active {
+		transform: translateY(1px);
+	}
+}
+
+/* When the checkbox is checked, add a blue background */
+.container input:checked ~ .checkbox {
+	background-color: var(--gray-200);
+
+	&::after {
+		display: flex;
+		content: url("/images/icons/checkmark.png");
+		position: absolute;
+		width: 18px;
+		height: 18px;
+		max-width: 18px;
+		max-height: 18px;
+		image-rendering: crisp-edges;
+		margin-left: 2px;
+		margin-top: 2px;
+	}
+
+	&:active {
+		transform: translateY(1px);
+	}
+}

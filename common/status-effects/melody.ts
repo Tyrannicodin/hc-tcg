@@ -1,49 +1,68 @@
-import StatusEffect, {StatusEffectProps, statusEffect} from './status-effect'
+import {
+	CardComponent,
+	ObserverComponent,
+	StatusEffectComponent,
+} from '../components'
 import {GameModel} from '../models/game-model'
-import {CardPosModel} from '../models/card-pos-model'
-import {hasStatusEffect, removeStatusEffect} from '../utils/board'
-import {StatusEffectInstance} from '../types/game-state'
-import {slot} from '../slot'
+import {afterAttack} from '../types/priorities'
+import {StatusEffect, systemStatusEffect} from './status-effect'
 
-class MelodyStatusEffect extends StatusEffect {
-	props: StatusEffectProps = {
-		...statusEffect,
-		id: 'melody',
-		name: "Ollie's Melody",
-		description: 'This Hermit heals 10hp every turn.',
-		applyCondition: slot.not(slot.hasStatusEffect('melody')),
-	}
+function updateDescription(
+	melodyEffect: StatusEffectComponent,
+	target: CardComponent,
+) {
+	const {creator} = melodyEffect
+	if (!creator.slot.inRow()) return
+	melodyEffect.description = `This Hermit heals 10hp every turn until ${creator.player.entity === target.player.entity ? '' : "opponent's "}${creator.props.name} (${creator.slot.row.index + 1}) is knocked out.`
+}
 
-	override onApply(game: GameModel, instance: StatusEffectInstance, pos: CardPosModel) {
-		const {player} = pos
+const MelodyEffect: StatusEffect<CardComponent> = {
+	...systemStatusEffect,
+	id: 'melody',
+	icon: 'melody',
+	name: "Ollie's Melody",
+	description: 'This Hermit heals 10hp every turn until Oli is knocked out.',
+	applyCondition: (_game, card) =>
+		card instanceof CardComponent && !card.getStatusEffect(MelodyEffect),
+	onApply(
+		game: GameModel,
+		effect: StatusEffectComponent,
+		target: CardComponent,
+		observer: ObserverComponent,
+	) {
+		const {player} = target
 
-		player.hooks.onTurnStart.add(instance, () => {
-			const targetPos = game.findSlot(slot.hasInstance(instance.targetInstance))
-			if (!targetPos || !targetPos.row || !targetPos.row.hermitCard) return
-			if (targetPos.rowIndex === null) return
+		updateDescription(effect, target)
 
-			const hermitCard = targetPos.row.hermitCard
-			if (hermitCard) {
-				const maxHealth = Math.max(targetPos.row.health, hermitCard.card.props.health)
-				targetPos.row.health = Math.min(targetPos.row.health + 10, maxHealth)
+		observer.subscribe(player.hooks.onTurnStart, () => {
+			if (target.slot.inRow()) {
+				target.slot.row.heal(10)
+				game.battleLog.addEntry(
+					player.entity,
+					`$p${target.props.name} (${target.slot.row.index + 1})$ was healed $g10hp$ by $e${
+						effect.props.name
+					}$`,
+				)
 			}
 		})
 
-		player.hooks.afterDefence.add(instance, (attack) => {
-			const attackTarget = attack.getTarget()
-			if (!attackTarget) return
-			if (attackTarget.row.hermitCard.instance !== instance.targetInstance.instance) return
-			if (attackTarget.row.health > 0) return
-			removeStatusEffect(game, pos, instance)
+		observer.subscribe(effect.creator.hooks.onChangeSlot, (_newSlot) => {
+			updateDescription(effect, target)
 		})
-	}
 
-	override onRemoval(game: GameModel, instance: StatusEffectInstance, pos: CardPosModel) {
-		const {player} = pos
-
-		player.hooks.onTurnStart.remove(instance)
-		player.hooks.afterDefence.remove(instance)
-	}
+		observer.subscribeWithPriority(
+			game.hooks.afterAttack,
+			afterAttack.UPDATE_POST_ATTACK_STATE,
+			(attack) => {
+				if (
+					(!attack.isTargeting(target) || attack.target?.health) &&
+					(!attack.isTargeting(effect.creator) || attack.target?.health)
+				)
+					return
+				effect.remove()
+			},
+		)
+	},
 }
 
-export default MelodyStatusEffect
+export default MelodyEffect

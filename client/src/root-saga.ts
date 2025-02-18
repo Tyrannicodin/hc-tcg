@@ -1,33 +1,51 @@
-import {all, take, fork, call, race} from 'redux-saga/effects'
-import {SagaIterator} from 'redux-saga'
-import socketSaga from 'logic/socket/socket-saga'
+import databaseSaga from 'logic/game/database/database-saga'
+import localSettingsSaga from 'logic/local-settings/local-settings-saga'
+import matchmakingSaga from 'logic/matchmaking/matchmaking-saga'
+import {localMessages} from 'logic/messages'
 import {
+	cosmeticSaga,
+	databaseConnectionSaga,
+	databaseErrorSaga,
 	loginSaga,
 	logoutSaga,
 	newDeckSaga,
-	minecraftNameSaga,
+	newDecksSaga,
+	overviewSaga,
+	recieveAfterGameInfo,
+	recieveCurrentImportSaga,
 	updatesSaga,
 } from 'logic/session/session-saga'
-import matchmakingSaga from 'logic/matchmaking/matchmaking-saga'
-import fbdbSaga from 'logic/fbdb/fbdb-saga'
-import localSettingsSaga from 'logic/local-settings/local-settings-saga'
+import socketSaga from 'logic/socket/socket-saga'
 import soundSaga from 'logic/sound/sound-saga'
+import {SagaIterator} from 'redux-saga'
+import {all, call, fork, race, take} from 'redux-saga/effects'
 
 function* appSaga(): SagaIterator {
 	yield call(loginSaga)
+	yield fork(databaseConnectionSaga)
 	yield fork(logoutSaga)
+	yield fork(newDecksSaga)
 	yield fork(newDeckSaga)
-	yield fork(minecraftNameSaga)
+	yield fork(recieveAfterGameInfo)
+	yield fork(recieveCurrentImportSaga)
+	yield fork(databaseErrorSaga)
 	yield fork(matchmakingSaga)
 	yield fork(updatesSaga)
+	yield fork(cosmeticSaga)
+	yield fork(overviewSaga)
 }
 
 function* rootSaga(): SagaIterator {
-	yield all([fork(socketSaga), fork(fbdbSaga), fork(localSettingsSaga), fork(soundSaga)])
+	yield all([
+		fork(socketSaga),
+		fork(localSettingsSaga),
+		fork(databaseSaga),
+		fork(soundSaga),
+	])
 	while (true) {
 		console.log('Starting game loop')
 		const result = yield race({
-			disconnect: take('DISCONNECT'),
+			disconnect: take(localMessages.DISCONNECT),
 			app: call(appSaga),
 		})
 		console.log('Game loop end: ', result)

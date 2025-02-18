@@ -1,50 +1,93 @@
-import {takeEvery, put} from 'redux-saga/effects'
-import {select} from 'typed-redux-saga'
+import {ClientMessage} from 'common/socket-messages/client-messages'
+import {ServerMessageTable} from 'common/socket-messages/server-messages'
+import {LocalMessage, localMessages} from 'logic/messages'
+import {NO_SOCKET_ASSERT} from 'logic/session/session-saga'
+import {getSession} from 'logic/session/session-selectors'
 import {SagaIterator} from 'redux-saga'
 import {eventChannel} from 'redux-saga'
-import socket from 'socket'
-import {socketConnect, socketDisconnect, socketConnectError} from './socket-actions'
-import {getSession} from 'logic/session/session-selectors'
+import {put, select, takeEvery} from 'typed-redux-saga'
+import {getSocket} from './socket-selectors'
 
-export function* sendMsg(type: string, payload?: any): any {
-	while (true) {
-		if (socket.connected) {
-			console.log('[send]', type, payload)
-			const {playerId, playerSecret} = yield* select(getSession)
-			socket.emit(type, {
-				type,
+let messagesThatHaveNotBeenSent: Array<ClientMessage> = []
+
+export function* sendMsg(payload: ClientMessage) {
+	const socket = yield* select(getSocket)
+
+	if (!socket) throw new Error(NO_SOCKET_ASSERT)
+
+	if (socket.connected) {
+		console.log('[send]', payload.type, payload)
+		const {playerId, playerSecret} = yield* select(getSession)
+		socket.emit(payload.type, {
+			type: payload.type,
+			payload,
+			playerId,
+			playerSecret,
+		})
+		return 'success'
+	} else {
+		console.error('Can not send message when socket is not connected')
+		messagesThatHaveNotBeenSent.push(payload)
+		return 'failure'
+	}
+}
+
+export function sendMessagesThatFailedToSend(
+	session: {
+		playerId: string
+		playerSecret: string
+	},
+	socket: any,
+) {
+	return () => {
+		console.log(
+			`Socket connected, attempting to send ${messagesThatHaveNotBeenSent.length} messages that failed to send.`,
+		)
+		let attempts = 0
+		while (messagesThatHaveNotBeenSent.length > 0) {
+			let payload = messagesThatHaveNotBeenSent.pop()
+			if (!payload) continue
+			socket.emit(payload.type, {
+				type: payload.type,
 				payload,
-				playerId,
-				playerSecret,
+				playerId: session.playerId,
+				playerSecret: session.playerSecret,
 			})
-			break
+			if (attempts > 100) {
+				throw new Error('Could not send all messages after reconnect.')
+			}
+			attempts += 1
 		}
-		yield new Promise((resolve: any) => {
-			socket.once('connect', resolve)
+	}
+}
+
+export function receiveMsg<T extends keyof ServerMessageTable>(
+	socket: any,
+	type: T,
+) {
+	return () => {
+		return new Promise<ServerMessageTable[T]>((resolve) => {
+			const listener = (message: ServerMessageTable[T]) => {
+				resolve(message)
+			}
+			socket.once(type as string, listener as any)
 		})
 	}
 }
 
-export type ServerMessage = {
-	type: string
-	payload?: any
-}
-
-export const receiveMsg = (type: string) => {
-	return new Promise<ServerMessage>((resolve) => {
-		const listener = (message: ServerMessage) => {
-			resolve(message)
-		}
-		socket.once(type, listener)
-	})
-}
-
 function* socketSaga(): SagaIterator {
+	const socket = yield* select(getSocket)
+	const session = yield* select(getSession)
+
+	if (!socket) throw new Error(NO_SOCKET_ASSERT)
+
 	const channel = eventChannel((emitter: any): any => {
 		const connectListener = () => emitter('connect')
 		const disconnectListener = () => emitter('disconnect')
 		const connectErrorListener = () => emitter('connect_error')
+
 		socket.on('connect', connectListener)
+		socket.on('connect', sendMessagesThatFailedToSend(session, socket))
 		socket.on('disconnect', disconnectListener)
 		socket.on('connect_error', connectErrorListener)
 		return () => {
@@ -53,11 +96,14 @@ function* socketSaga(): SagaIterator {
 			socket.off('connect_error', connectErrorListener)
 		}
 	})
-	yield takeEvery(channel, function* (type) {
+	yield* takeEvery(channel, function* (type) {
 		console.log('@socket: ', type)
-		if (type === 'connect') yield put(socketConnect())
-		if (type === 'disconnect') yield put(socketDisconnect())
-		if (type === 'connect_error') yield put(socketConnectError())
+		if (type === 'connect')
+			yield* put<LocalMessage>({type: localMessages.SOCKET_CONNECT})
+		if (type === 'disconnect')
+			yield* put<LocalMessage>({type: localMessages.SOCKET_DISCONNECT})
+		if (type === 'connect_error')
+			yield* put<LocalMessage>({type: localMessages.SOCKET_CONNECT_ERROR})
 	})
 }
 

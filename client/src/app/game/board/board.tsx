@@ -1,64 +1,70 @@
-import {useSelector} from 'react-redux'
+import {PlayerEntity, SlotEntity} from 'common/entities'
+import {SlotTypeT} from 'common/types/cards'
 import {LocalGameState, LocalPlayerState} from 'common/types/game-state'
-import {getPlayerId} from 'logic/session/session-selectors'
-import css from './board.module.scss'
-import BoardRow from './board-row'
+import {LocalCardInstance, SlotInfo} from 'common/types/server-requests'
+import {getOpponentState, getPlayerState} from 'logic/game/game-selectors'
+import {getSettings} from 'logic/local-settings/local-settings-selectors'
+import {useSelector} from 'react-redux'
+import Actions from '../actions/actions'
+import MobileActions from '../actions/mobile-actions'
 import PlayerInfo from '../player-info'
 import Timer from '../timer'
-import Actions from '../actions/actions'
-import {getSettings} from 'logic/local-settings/local-settings-selectors'
-import MobileActions from '../actions/mobile-actions'
-import {LocalCardInstance, PickInfo} from 'common/types/server-requests'
-import {SlotTypeT} from 'common/types/cards'
+import BoardRow from './board-row'
+import css from './board.module.scss'
 
 type Props = {
-	onClick: (pickInfo: PickInfo) => void
+	onClick: (
+		pickInfo: SlotInfo,
+		player: PlayerEntity,
+		row?: number,
+		index?: number,
+	) => void
 	localGameState: LocalGameState
 }
 
-// TODO - Don't allow clicking on slots on the other side
 // TODO - Use selectors instead of passing gameState
 function Board({onClick, localGameState}: Props) {
 	const settings = useSelector(getSettings)
-	const playerId = useSelector(getPlayerId)
-	const player = localGameState.players[playerId]
-	const opponent = localGameState.players[localGameState.opponentPlayerId]
+	const player = useSelector(getPlayerState)
+	const opponent = useSelector(getOpponentState)
 	const side = settings.gameSide
 	const leftPlayer = side === 'Left' ? player : opponent
 	const rightPlayer = side === 'Right' ? player : opponent
 
 	const handleRowClick = (
-		playerId: string,
 		rowIndex: number,
+		player: PlayerEntity,
+		entity: SlotEntity,
+		slotType: SlotTypeT,
 		card: LocalCardInstance | null,
-		type: SlotTypeT,
-		index: number
+		index: number,
 	) => {
-		onClick({
-			playerId,
+		onClick(
+			{slotEntity: entity, slotType: slotType, card: card},
+			player,
 			rowIndex,
-			card,
-			type,
 			index,
-		})
+		)
 	}
 
-	const PlayerBoard = (player: LocalPlayerState, direction: 'left' | 'right') => {
-		const rows = player.board.rows
-		const boardArray = new Array(5).fill(null)
-
+	const PlayerBoard = (
+		player: LocalPlayerState,
+		direction: 'left' | 'right',
+	) => {
 		return (
 			<div className={css.playerBoard} id={css[direction]}>
-				{boardArray.map((_, index) => {
-					if (!rows[index]) throw new Error('Rendering board row failed!')
+				{player.board.rows.map((row, rowIndex) => {
 					return (
 						<BoardRow
-							key={index}
-							rowIndex={index}
-							rowState={rows[index]}
-							active={index === player.board.activeRow}
-							playerId={player.id}
-							onClick={handleRowClick.bind(null, player.id, index)}
+							key={row.entity}
+							player={
+								direction === 'left' ? leftPlayer?.entity : rightPlayer.entity
+							}
+							rowState={row}
+							active={row.entity === player.board.activeRow}
+							onClick={(...args) =>
+								handleRowClick(rowIndex, player.entity, ...args)
+							}
 							type={direction}
 							statusEffects={localGameState.statusEffects}
 						/>
@@ -78,11 +84,19 @@ function Board({onClick, localGameState}: Props) {
 
 			<div className={css.actualBoard}>
 				{PlayerBoard(leftPlayer, 'left')}
-				<Actions localGameState={localGameState} onClick={onClick} id={css.actions} />
+				<Actions
+					localGameState={localGameState}
+					onClick={(value) => onClick(value, player.entity)}
+					id={css.actions}
+				/>
 				{PlayerBoard(rightPlayer, 'right')}
 			</div>
 
-			<MobileActions localGameState={localGameState} onClick={onClick} id={css.actions} />
+			<MobileActions
+				localGameState={localGameState}
+				onClick={(value) => onClick(value, player.entity)}
+				id={css.actions}
+			/>
 		</div>
 	)
 }

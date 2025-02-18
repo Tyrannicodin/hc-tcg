@@ -1,86 +1,80 @@
-import {CardPosModel} from '../../../models/card-pos-model'
+import {
+	CardComponent,
+	ObserverComponent,
+	SlotComponent,
+	StatusEffectComponent,
+} from '../../../components'
+import query from '../../../components/query'
 import {GameModel} from '../../../models/game-model'
-import {applyStatusEffect, removeStatusEffect} from '../../../utils/board'
-import {slot} from '../../../slot'
-import Card, {Hermit, hermit} from '../../base/card'
-import {CardInstance} from '../../../types/game-state'
+import ProtectedEffect from '../../../status-effects/protected'
+import {afterAttack} from '../../../types/priorities'
+import {hermit} from '../../defaults'
+import {Hermit} from '../../types'
 
-class SolidaritygamingRareHermitCard extends Card {
-	props: Hermit = {
-		...hermit,
-		id: 'solidaritygaming_rare',
-		numericId: 220,
-		name: 'Jimmy',
-		expansion: 'advent_of_tcg',
-		palette: 'advent_of_tcg',
-		background: 'advent_of_tcg',
-		rarity: 'rare',
-		tokens: 2,
-		type: 'prankster',
-		health: 270,
-		primary: {
-			name: 'The Law',
-			cost: ['prankster', 'any'],
-			damage: 70,
-			power:
-				'After your attack, choose one of your AFK Hermits to protect. This Hermit does not take damage on their first active turn.\nOnly one Hermit can be protected at a time.',
-		},
-		secondary: {
-			name: 'Not a toy',
-			cost: ['prankster', 'prankster', 'prankster'],
-			damage: 100,
-			power: null,
-		},
-	}
+const SolidaritygamingRare: Hermit = {
+	...hermit,
+	id: 'solidaritygaming_rare',
+	numericId: 220,
+	name: 'Jimmy',
+	expansion: 'advent_of_tcg',
+	palette: 'advent_of_tcg',
+	background: 'advent_of_tcg',
+	rarity: 'rare',
+	tokens: 2,
+	type: 'prankster',
+	health: 270,
+	primary: {
+		name: 'The Law',
+		cost: ['prankster', 'any'],
+		damage: 70,
+		power:
+			'After your attack, choose one of your AFK Hermits to protect from damage on their first active turn.\nOnly one Hermit can be protected at a time.',
+	},
+	secondary: {
+		name: 'Not a toy',
+		cost: ['prankster', 'prankster', 'prankster'],
+		damage: 100,
+		power: null,
+	},
+	onAttach(
+		game: GameModel,
+		component: CardComponent,
+		observer: ObserverComponent,
+	): void {
+		const {player} = component
 
-	public override onAttach(game: GameModel, instance: CardInstance, pos: CardPosModel): void {
-		const {player} = pos
+		observer.subscribeWithPriority(
+			game.hooks.afterAttack,
+			afterAttack.HERMIT_ATTACK_REQUESTS,
+			(attack) => {
+				if (!attack.isAttacker(component.entity) || attack.type !== 'primary')
+					return
 
-		player.hooks.onAttack.add(instance, (attack) => {
-			if (attack.id !== this.getInstanceKey(instance) || attack.type !== 'primary') return
-			player.board.rows.forEach((row) => {
-				if (!row.hermitCard) return
+				const pickCondition = query.every(
+					query.slot.currentPlayer,
+					query.slot.hermit,
+					query.not(query.slot.active),
+					query.not(query.slot.empty),
+				)
 
-				const statusEffectsToRemove = game.state.statusEffects.filter((ail) => {
-					return (
-						ail.targetInstance.instance === row.hermitCard.instance &&
-						ail.statusEffect.props.id === 'protected'
-					)
+				if (!game.components.exists(SlotComponent, pickCondition)) return
+
+				game.addPickRequest({
+					player: player.entity,
+					id: component.entity,
+					message: 'Choose an AFK Hermit to protect',
+					canPick: pickCondition,
+					onResult(pickedSlot) {
+						if (!pickedSlot.inRow() || !pickedSlot.getCard()) return
+
+						game.components
+							.new(StatusEffectComponent, ProtectedEffect, component.entity)
+							.apply(pickedSlot.getCard()?.entity)
+					},
 				})
-
-				statusEffectsToRemove.forEach((ail) => {
-					removeStatusEffect(game, pos, ail)
-				})
-			})
-
-			const pickCondition = slot.every(
-				slot.player,
-				slot.not(slot.activeRow),
-				slot.not(slot.empty),
-				slot.hermitSlot
-			)
-
-			if (!game.someSlotFulfills(pickCondition)) return
-
-			game.addPickRequest({
-				playerId: player.id,
-				id: instance.instance,
-				message: 'Choose an AFK Hermit to protect',
-				canPick: pickCondition,
-				onResult(pickedSlot) {
-					const rowIndex = pickedSlot.rowIndex
-					if (!pickedSlot.card || rowIndex === null) return
-
-					applyStatusEffect(game, 'protected', pickedSlot.card)
-				},
-			})
-		})
-	}
-
-	public override onDetach(game: GameModel, instance: CardInstance, pos: CardPosModel): void {
-		const {player} = pos
-		player.hooks.onAttack.remove(instance)
-	}
+			},
+		)
+	},
 }
 
-export default SolidaritygamingRareHermitCard
+export default SolidaritygamingRare

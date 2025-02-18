@@ -1,20 +1,19 @@
-import {SagaIterator} from 'redux-saga'
-import {call, takeLatest, takeEvery} from 'redux-saga/effects'
-import {select} from 'typed-redux-saga'
-import {trackList} from './sound-config'
-import {SectionChangeT, PlaySoundT} from './sound-actions'
 import {getSettings} from 'logic/local-settings/local-settings-selectors'
-import {ToastT} from 'common/types/app'
-import {useDispatch} from 'react-redux'
-import {sendMsg} from 'logic/socket/socket-saga'
+import {LocalMessageTable, localMessages} from 'logic/messages'
+import {SagaIterator} from 'redux-saga'
+import {call, takeEvery, takeLatest} from 'redux-saga/effects'
+import {delay, fork, select} from 'typed-redux-saga'
+import {trackList} from './sound-config'
 
 const audioCtx = new AudioContext()
 const bgMusic = new Audio()
 const sourceNode = audioCtx.createMediaElementSource(bgMusic)
 const musicGainNode = audioCtx.createGain()
 const soundGainNode = audioCtx.createGain()
+const voiceGainNode = audioCtx.createGain()
 sourceNode.connect(musicGainNode).connect(audioCtx.destination)
 soundGainNode.connect(audioCtx.destination)
+voiceGainNode.connect(audioCtx.destination)
 
 bgMusic.loop = true
 musicGainNode.gain.value = 0.75
@@ -26,10 +25,10 @@ window.bgMusic = bgMusic
 // @ts-ignore
 window.audioCtx = audioCtx
 
-function* backgroundMusic(action: SectionChangeT): SagaIterator {
-	const section = action.payload
-
-	if (section !== 'game') {
+function* backgroundMusic(
+	action: LocalMessageTable[typeof localMessages.SOUND_SECTION_CHANGE],
+): SagaIterator {
+	if (action.section !== 'game') {
 		bgMusic.pause()
 		bgMusic.currentTime = 0
 		bgMusic.src = ''
@@ -39,7 +38,8 @@ function* backgroundMusic(action: SectionChangeT): SagaIterator {
 		return
 	}
 
-	const musicFile = trackList.game[Math.floor(Math.random() * trackList.game.length)]
+	const musicFile =
+		trackList.game[Math.floor(Math.random() * trackList.game.length)]
 
 	const newPath = `/music/${musicFile.file}`
 	if (newPath !== bgMusic.getAttribute('src')) {
@@ -50,13 +50,15 @@ function* backgroundMusic(action: SectionChangeT): SagaIterator {
 	}
 }
 
-function* playSoundSaga(action: PlaySoundT): SagaIterator {
+function* playSoundSaga(
+	action: LocalMessageTable[typeof localMessages.SOUND_PLAY],
+): SagaIterator {
 	try {
 		if (audioCtx.state !== 'running') return
 		const settings = yield* select(getSettings)
-		if (settings.soundVolume === '0') return
+		if (settings.soundVolume === 0) return
 
-		const sound = new Audio(action.payload)
+		const sound = new Audio(action.path)
 		const sourceNode = audioCtx.createMediaElementSource(sound)
 		sourceNode.connect(soundGainNode)
 		sound.onended = () => sourceNode.disconnect(soundGainNode)
@@ -66,11 +68,69 @@ function* playSoundSaga(action: PlaySoundT): SagaIterator {
 	}
 }
 
+const voiceAudio = new Audio()
+const voiceSourceNode = audioCtx.createMediaElementSource(voiceAudio)
+
+const voiceLineQueue: string[] = []
+function* playVoiceSaga(
+	action: LocalMessageTable[typeof localMessages.QUEUE_VOICE],
+) {
+	if (audioCtx.state !== 'running') return
+	const settings = yield* select(getSettings)
+	if (settings.voiceVolume === 0) return
+
+	voiceLineQueue.push(...action.lines)
+}
+
+function* voiceQueuePlay() {
+	while (true) {
+		if (voiceLineQueue.length > 0 && voiceAudio.paused) {
+			const nextAudio = voiceLineQueue.shift()
+			if (nextAudio) {
+				voiceSourceNode.connect(voiceGainNode)
+				voiceAudio.onended = () => voiceSourceNode.disconnect(voiceGainNode)
+				voiceAudio.pause()
+				voiceAudio.src = nextAudio
+				voiceAudio.currentTime = 0
+				voiceAudio.play()
+			}
+		}
+		yield* delay(100)
+	}
+}
+
+function* playVoiceTest(
+	_action: LocalMessageTable[typeof localMessages.PLAY_VOICE_TEST],
+) {
+	if (!voiceAudio.paused) return
+	voiceAudio.src = '/voice/TEST.ogg'
+	voiceAudio.onended = () => voiceSourceNode.disconnect(voiceGainNode)
+	voiceSourceNode.connect(voiceGainNode)
+	voiceAudio.play()
+}
+
+function* stopVoiceChannel(
+	action: LocalMessageTable[typeof localMessages.SOUND_SECTION_CHANGE],
+) {
+	if (voiceAudio.paused || action.section === 'game') return
+	voiceAudio.pause()
+	voiceAudio.currentTime = 0
+	voiceSourceNode.disconnect(voiceGainNode)
+	while (voiceLineQueue.pop() !== undefined);
+}
+
 function* settingSaga(): SagaIterator {
 	try {
 		const settings = yield* select(getSettings)
-		musicGainNode.gain.value = Number(settings.musicVolume) / 100
-		soundGainNode.gain.value = Number(settings.soundVolume) / 100
+		if (settings.muted) {
+			musicGainNode.gain.value = 0
+			soundGainNode.gain.value = 0
+			voiceGainNode.gain.value = 0
+		} else {
+			musicGainNode.gain.value = settings.musicVolume / 100
+			soundGainNode.gain.value = settings.soundVolume / 100
+			voiceGainNode.gain.value = settings.voiceVolume / 100
+		}
 	} catch (err) {
 		console.error(err)
 	}
@@ -79,9 +139,13 @@ function* settingSaga(): SagaIterator {
 function* soundSaga(): SagaIterator {
 	// @ts-ignore
 	yield call(settingSaga)
-	yield takeEvery('SET_SETTING', settingSaga)
-	yield takeLatest('@sound/SECTION_CHANGE', backgroundMusic)
-	yield takeEvery('@sound/PLAY_SOUND', playSoundSaga)
+	yield takeEvery(localMessages.SETTINGS_SET, settingSaga)
+	yield takeLatest(localMessages.SOUND_SECTION_CHANGE, backgroundMusic)
+	yield takeEvery(localMessages.SOUND_PLAY, playSoundSaga)
+	yield takeEvery(localMessages.QUEUE_VOICE, playVoiceSaga)
+	yield takeLatest(localMessages.PLAY_VOICE_TEST, playVoiceTest)
+	yield takeLatest(localMessages.SOUND_SECTION_CHANGE, stopVoiceChannel)
+	yield* fork(voiceQueuePlay)
 	document.addEventListener(
 		'click',
 		() => {
@@ -92,7 +156,7 @@ function* soundSaga(): SagaIterator {
 			}
 			interacted = true
 		},
-		{once: true}
+		{once: true},
 	)
 }
 

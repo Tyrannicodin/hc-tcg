@@ -1,39 +1,43 @@
-import {getStarterPack} from '../../server/src/utils/state-gen'
-import {PlayerDeckT} from '../../common/types/deck'
 import {Socket} from 'socket.io'
-import {validateDeck} from '../utils/validation'
+import {Deck} from '../../common/types/deck'
+import {defaultAppearance} from '../cosmetics/default'
+import {Appearance} from '../cosmetics/types'
+import {AchievementProgress} from '../types/achievements'
+import {PlayerInfo} from '../types/server-requests'
 import {censorString} from '../utils/formatting'
-import {LocalCardInstance} from '../types/server-requests'
+
+export type PlayerId = string & {__player_id: never}
 
 export class PlayerModel {
-	private internalId: string
+	private internalId: PlayerId
 	private internalSecret: string
-	private internalDeck: {
-		name: string
-		icon: string
-		cards: Array<LocalCardInstance>
-	}
-
+	private internalDeck: Deck | null
 	public name: string
 	public minecraftName: string
 	public censoredName: string
 	public socket: Socket
+	public uuid: string
+	public achievementProgress: AchievementProgress
+	public appearance: Appearance
 
-	constructor(playerName: string, minecraftName: string, socket: Socket) {
-		this.internalId = Math.random().toString()
+	constructor(
+		playerName: string,
+		minecraftName: string,
+		uuid: string,
+		socket: Socket,
+	) {
+		this.internalId = Math.random().toString() as PlayerId
 		this.internalSecret = Math.random().toString()
 
-		// Always generate a starter deck as the default
-		this.internalDeck = {
-			name: 'Starter Deck',
-			icon: 'any',
-			cards: getStarterPack(),
-		}
+		this.internalDeck = null
 
 		this.name = playerName
 		this.minecraftName = minecraftName
 		this.censoredName = censorString(playerName)
 		this.socket = socket
+		this.uuid = uuid
+		this.achievementProgress = {}
+		this.appearance = {...defaultAppearance}
 	}
 
 	public get id() {
@@ -46,7 +50,7 @@ export class PlayerModel {
 		return this.internalDeck
 	}
 
-	getPlayerInfo() {
+	getPlayerInfo(): PlayerInfo {
 		return {
 			playerId: this.id,
 			playerSecret: this.secret,
@@ -57,18 +61,15 @@ export class PlayerModel {
 		}
 	}
 
-	setPlayerDeck(newDeck: PlayerDeckT) {
-		if (!newDeck || !newDeck.cards) return
-		const validationMessage = validateDeck(newDeck.cards)
-		if (validationMessage) return
+	setPlayerDeck(newDeck: Deck) {
 		this.internalDeck = {
 			name: newDeck.name,
+			//@ts-ignore
+			iconType: newDeck.iconType,
 			icon: newDeck.icon,
 			cards: newDeck.cards,
+			code: newDeck.code,
+			tags: newDeck.tags,
 		}
-	}
-
-	setMinecraftName(name: string) {
-		this.minecraftName = name
 	}
 }

@@ -1,63 +1,75 @@
-import {CardPosModel} from '../../../models/card-pos-model'
+import {
+	CardComponent,
+	DeckSlotComponent,
+	ObserverComponent,
+} from '../../../components'
+import query from '../../../components/query'
 import {GameModel} from '../../../models/game-model'
-import {slot, SlotCondition} from '../../../slot'
-import {CardInstance} from '../../../types/game-state'
-import Card, {singleUse, SingleUse} from '../../base/card'
+import {singleUse} from '../../defaults'
+import {SingleUse} from '../../types'
 
-class BrushSingleUseCard extends Card {
-	props: SingleUse = {
-		...singleUse,
-		id: 'brush',
-		numericId: 221,
-		name: 'Brush',
-		expansion: 'advent_of_tcg',
-		rarity: 'rare',
-		tokens: 0,
-		description:
-			'View the top 3 cards of your deck, then choose any number to keep on the top of your deck. The rest will be placed on the bottom in their original order.',
-		showConfirmationModal: true,
-		attachCondition: slot.every(
-			singleUse.attachCondition,
-			(game, pos) => pos.player.pile.length >= 3
-		),
-	}
+const Brush: SingleUse = {
+	...singleUse,
+	id: 'brush',
+	numericId: 221,
+	name: 'Brush',
+	expansion: 'advent_of_tcg',
+	rarity: 'common',
+	tokens: 0,
+	description:
+		'View the top 2 cards of your deck, then choose any number to keep on the top of your deck. The rest will be placed on the bottom of your deck.',
+	showConfirmationModal: true,
+	attachCondition: query.every(
+		singleUse.attachCondition,
+		(_game, pos) => pos.player.getDeck().length >= 3,
+	),
+	log: (values) => values.defaultLog,
+	onAttach(
+		game: GameModel,
+		component: CardComponent,
+		observer: ObserverComponent,
+	) {
+		const {player} = component
 
-	override onAttach(game: GameModel, instance: CardInstance, pos: CardPosModel) {
-		const {player} = pos
+		observer.subscribe(player.hooks.onApply, () => {
+			const topCards = player
+				.getDeck()
+				.sort(CardComponent.compareOrder)
+				.slice(0, 2)
 
-		player.hooks.onApply.add(instance, () => {
 			game.addModalRequest({
-				playerId: player.id,
-				data: {
-					modalId: 'selectCards',
-					payload: {
-						modalName: 'Brush: Choose cards to place on the top of your deck.',
-						modalDescription: 'Select cards you would like to draw sooner first.',
-						cards: player.pile.slice(0, 3).map((card) => card.toLocalCardInstance()),
-						selectionSize: 3,
-						primaryButton: {
-							text: 'Confirm Selection',
-							variant: 'default',
-						},
-					},
+				player: player.entity,
+				modal: {
+					type: 'dragCards',
+					name: 'Brush',
+					description:
+						'Drag cards to put them on the top or bottom of your deck. Cards closer to the right will be drawn first.',
+					leftCards: [],
+					rightCards: topCards.map((card) => card.entity),
+					leftAreaName: 'Bottom of Deck',
+					leftAreaMax: null,
+					rightAreaName: 'Top of Deck',
+					rightAreaMax: null,
 				},
 				onResult(modalResult) {
 					if (!modalResult) return 'FAILURE_INVALID_DATA'
-					if (!modalResult.cards) return 'SUCCESS'
+					if (!modalResult.result) return 'SUCCESS'
 
-					const cards = modalResult.cards
-
-					const topCards: Array<CardInstance> = []
-					const bottomCards: Array<CardInstance> = []
-
-					player.pile.slice(0, 3).forEach((c) => {
-						if (cards.some((d) => c.instance === d.instance)) topCards.push(c)
-						else bottomCards.push(c)
+					modalResult.rightCards.reverse().forEach((c) => {
+						c.attach(
+							game.components.new(DeckSlotComponent, player.entity, {
+								position: 'front',
+							}),
+						)
 					})
 
-					player.pile = player.pile.slice(3)
-					topCards.reverse().forEach((c) => player.pile.unshift(c))
-					bottomCards.forEach((c) => player.pile.push(c))
+					modalResult.leftCards.forEach((c) => {
+						c.attach(
+							game.components.new(DeckSlotComponent, player.entity, {
+								position: 'back',
+							}),
+						)
+					})
 
 					return 'SUCCESS'
 				},
@@ -66,12 +78,7 @@ class BrushSingleUseCard extends Card {
 				},
 			})
 		})
-	}
-
-	override onDetach(game: GameModel, instance: CardInstance, pos: CardPosModel) {
-		const {player} = pos
-		player.hooks.onApply.remove(instance)
-	}
+	},
 }
 
-export default BrushSingleUseCard
+export default Brush

@@ -1,38 +1,51 @@
-import {takeEvery} from 'typed-redux-saga'
-import {broadcast} from '../../utils/comm'
-import {PlayerModel} from 'common/models/player-model'
-import {GameModel} from 'common/models/game-model'
-import {AnyAction} from 'redux'
-import {concatFormattedTextNodes, formatText} from 'common/utils/formatting'
+import {
+	RecievedClientMessage,
+	clientMessages,
+} from 'common/socket-messages/client-messages'
+import {
+	FormatNode,
+	PlaintextNode,
+	concatFormattedTextNodes,
+	formatText,
+} from 'common/utils/formatting'
+import {getGame} from 'selectors'
+import {select} from 'typed-redux-saga'
 
-const gameAction =
-	(type: string, game: {players: Record<string, PlayerModel>}) => (action: any) => {
-		return action.type === type && !!game.players[action.playerId]
-	}
+export function* chatMessage(
+	action: RecievedClientMessage<typeof clientMessages.CHAT_MESSAGE>,
+) {
+	let game = yield* select(getGame(action.playerId))
+	if (!game) return
 
-function* chatMessageSaga(game: GameModel, action: AnyAction) {
-	const {payload: message, playerId} = action
+	const {
+		payload: {message},
+		playerId,
+	} = action
 	if (typeof message !== 'string') return
 	if (message.length < 1) return
 	if (message.length > 140) return
 
+	const isSpectator = game.viewers.find(
+		(viewer) => viewer.player.id === playerId,
+	)?.spectator
+
 	game.chat.push({
+		sender: {
+			type: 'viewer',
+			id: playerId,
+		},
 		message: concatFormattedTextNodes(
-			formatText(`$p${game.players[playerId].name}$ `, {censor: true}),
-			formatText(message, {
+			FormatNode(
+				isSpectator ? 'spectator' : 'player',
+				PlaintextNode(`${game.players[playerId].name}`),
+			),
+			formatText(` ${message}`, {
 				censor: true,
 				'enable-$': false,
-			})
+			}),
 		),
 		createdAt: Date.now(),
-		systemMessage: false,
-		sender: playerId,
 	})
-	broadcast(game.getPlayers(), 'CHAT_UPDATE', game.chat)
-}
 
-function* chatSaga(game: GameModel) {
-	yield* takeEvery(gameAction('CHAT_MESSAGE', game), chatMessageSaga, game)
+	game.chatUpdate()
 }
-
-export default chatSaga
